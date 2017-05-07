@@ -23,6 +23,115 @@ plot_candidate = function(v1all = NULL,flank = 5, myposition = NULL, id = NULL){
 	}
 }
 
+filterOutput = function(x){
+  print(x[["geneID"]]);
+  
+  # get the fold change and pvalue
+  #et = etTable[chr==x[["chr"]] & pos >= (x[["start"]]-200) & pos <= (x[["end"]]+200),]
+  et = etTable[chr==x[["chr"]],]
+  
+  # logcpm et[,2], min2[i] is the relative abundance. median + sd
+  # min2[i] <- median(et[is.finite(et[[2]]),2])+sd(et[is.finite(et[[2]]),2]) this criteria is too strigent so that orf19.6854 can not pass the fold change criteria
+  #min2[i] <- median(et[is.finite(et[[2]]),2])
+  localcovfilter = 0.5;
+  extendLen = 120; # how long is the length for extension
+  tmpstart = as.numeric(as.character(x[["pstart"]])) - extendLen;
+  tmpend = as.numeric(as.character(x[["pend"]])) + extendLen;
+  #min2 = et[is.finite(logCPM),quantile(logCPM,localcovfilter)]; # coverage cutoff for given gene
+  #min2 = et[is.finite(logCPM) & pos >= tmpstart & pos <= tmpend,quantile(logCPM,localcovfilter)]; # coverage cutoff for given gene
+  min2 = et[is.finite(logCPM) & pos >= tmpstart & pos <= tmpend,mean(logCPM)]; # coverage cutoff for given gene
+  pvaluefilter = ifelse(sum(et[ pos >= as.numeric(as.character(x[["pstart"]])) & pos <= as.numeric(as.character(x[["pend"]])),PValue]<thr)>0,"pass","nopass");
+  covfilter = ifelse(
+                sum(
+                  et[,pos] >= as.numeric(as.character(x[["pstart"]])) & et[,pos] <= as.numeric(as.character(x[["pend"]])) 
+                  & et[,logCPM]>=min2 & et[,PValue]<thr)>0,"pass","nopass");
+  passed <- et[logCPM>=min2 & PValue<thr & pos >= as.numeric(as.character(x[["pstart"]])) & pos <= as.numeric(as.character(x[["pend"]])),]
+  foldfilter = "nopass";
+  sitecovfilter = "nopass";
+  changefilter = "nopass";
+  ## passed - <- positions passed min2, thr,
+  
+  #gStruc is the CDS information start, end of CDS, which is used to annotate the biotype of candidates.
+  g <- gStruc[gStruc$gene==gsub("(.*):(.*)","\\1",x[["chr"]]),]
+  fc <- maxpos <- dist <- pcounts <- lowpass <- as.numeric(0);
+  pcpos <- lppos <- "none"
+  
+  if (NROW(passed)>0){ # pass the gene coverage information    
+    #print(i);
+    fc <- 2^(max(abs(passed[,logFC]))) # fold change filter
+    #if (fc[i]>2){ # if fold change > 2fold
+    if (fc>foldcutoff){ # if fold change > 2fold
+      foldfilter = "pass";				
+      maxpos = passed[which.max(abs(logFC)),pos]; # get the position of site with maximum fold change
+      # get the relative position in transcript, 5UTR negative, CDS position, 3UTR positive + 100.
+      if (maxpos<=g[[2]]) {
+        dist <- maxpos-g[[2]]-1 # 5'UTR
+      } else if (maxpos>=g[[3]]){
+        dist <- maxpos-g[[3]]+1001 # 3'UTR
+      } else {
+        dist <- (maxpos-g[[2]]+1)*1000/(g[[3]]-g[[2]]-1); # CDS scaled as 1000bp
+      }
+      passed_pos <- passed[abs(logFC) >= log2(foldcutoff),pos] ## only those positions that also pass FC filters
+      
+      if (length(passed_pos)>1){ # multiple sites passed
+        passed_counts = v1all[chr==x[["chr"]] & pos %in% passed_pos,];
+        norcounts = t(t(passed_counts[,usedCol,with=F])*sf[usedCol]); # sf is from  yeast_combined_v1all_edgeR_sf.Rdata
+        passedIndex = apply(norcounts,1,function(x){sum( x > normalizedCountFilter) >= numConditionPassNCF});
+        
+        if(sum(passedIndex)>0) {
+          pcpos <- paste(passed_counts[passedIndex,pos],collapse=";");
+          sitecovfilter = "pass";
+        }
+        passed2 <- passed[pos %in% passed_counts[,pos],]  	     
+        sign <- ifelse(passed2[,logFC]>0,TRUE,FALSE) ## TRUE for up, FALSE for down
+        
+        lpstatus <- unlist(
+          lapply(1:NROW(passed2),function(x){
+            if (sign[x]){
+              return(min(norcounts[x,group_names])>(mean(norcounts[x,!group_names])+2*sd(norcounts[x,!group_names])))
+            } else {
+              return(max(norcounts[x,group_names])<(mean(norcounts[x,!group_names])-2*sd(norcounts[x,!group_names])))
+            }
+          }));
+        lowpass <- as.numeric(sum(as.numeric(lpstatus))>0);
+        if (lowpass>0) {
+          lppos <- paste(passed_pos[lpstatus],collapse=";")
+          changefilter = "pass";
+        }
+      } else {
+        passed_counts <- v1all[chr==x[["chr"]] & pos == passed_pos,];
+        norcounts = unlist(passed_counts[,usedCol,with=F])*sf[usedCol];
+        pcounts <- as.numeric(sum(norcounts>normalizedCountFilter)>=numConditionPassNCF)
+        if (pcounts>0) {
+          pcpos <- as.character(passed_pos);
+          sitecovfilter = "pass";
+        }
+        if (passed[pos == passed_pos,logFC]>0){ # increasing/decreasing of V1 signal 
+          lowpass <- as.numeric(min(norcounts[group_names]) > mean(norcounts[!group_names])+2*sd(norcounts[!group_names]))
+        } else {
+          lowpass <- as.numeric(max(norcounts[group_names]) < mean(norcounts[!group_names])-2*sd(norcounts[!group_names]))            
+        }
+        if (lowpass>0) {
+          lppos <- as.character(passed_pos);
+          changefilter = "pass";
+        }
+      }
+    }
+  }
+  
+  # to use do.call(rbind.data.frame,function), the result should be list of list
+  #resultlist = list();
+  #resultlist[[1]] = list(maxPos=as.numeric(maxpos),maxFC=as.numeric(fc));
+  
+  return(
+    #list(maxPos=as.numeric(maxpos),maxFC=as.numeric(fc))
+    list( maxPos= as.numeric(maxpos), maxFC=fc, m1sd=min2, dist=dist, pcounts = pcounts,
+          pcpos = pcpos,lowpass = lowpass,lppos = lppos,pvaluefilter = pvaluefilter,
+          covfilter = covfilter,foldfilter = foldfilter,sitecovfilter = sitecovfilter, changefilter = changefilter));
+    
+}
+
+
 #### for debug #####
 # rowinfotab = "~/gseq/prog/parcel/candida_tab/h2o_1.tab"
 # covcutoff = 10
@@ -38,6 +147,7 @@ plot_candidate = function(v1all = NULL,flank = 5, myposition = NULL, id = NULL){
 #setwd("/mnt/projects/sunm/others/yeast/analysis_combined")
 #source("/mnt/projects/sunm/bacteria/useful_Rscript.R")
 #setwd("~/gseq/prog/parcel/");
+suppressPackageStartupMessages(library("data.table"));
 source("~/gseq/prog/parcel/C.albicans/sunScripts/useful_Rscript.R")
 
 args = commandArgs(T);
@@ -68,18 +178,42 @@ print(args);
 # sampleinfofile = "~/gseq/prog/parcel/Fly/sampleList_Fly.txt"
 # batchid = "batch100"
 
+covcutoff = 10
+conditions = "tpp"
+resultdir = "~/gseq/prog/parcel/Fly/parcelResultSunMiao/batch100/";
+covinfo = "~/gseq/prog/parcel/Fly/parcelResultSunMiao/batch100/covinfo_tpp.Rdata";
+sffile = "~/gseq/prog/parcel/Fly/parcelResultSunMiao/batch100/edgeR_tpp_sf.Rdata";
+gStruc = "~/gseq/prog/database/Genome/Flybase/Dmel/FB2016_02/cdsinfo.txt"; # "/mnt/projects/sunm/bacteria/fastq/S288C4/sgdGenes_gStruc.Rdata"
+sampleinfofile = "~/gseq/prog/parcel/Fly/sampleList_Fly.txt"
+batchid = "batch100"
 
-rowinfotab = args[1]; # "/mnt/projects/sunm/others/yeast/fastq_combined/apt_1.tab"
-covcutoff = as.numeric(args[2]); # 10
-conditions = args[3]; # atp
-resultdir = args[4]; # analysis_combined/
-covinfo = args[5]; # "yeast_combined_v1all.Rdata"
-sffile = args[6]; # "yeast_combined_v1all_edgeR_sf.Rdata"
-gStruc = args[7]; # "/mnt/projects/sunm/bacteria/fastq/S288C4/sgdGenes_gStruc.Rdata"
-sampleinfofile = args[8]; # sampleinfo.txt
-batchid = args[9];
+covcutoff = 1
+conditions = "met"
+resultdir = "~/gseq/prog/parcel/C.albicans/parcelResultSunMiaoFast/batch1/";
+covinfo = "~/gseq/prog/parcel/C.albicans/parcelResultSunMiaoFast/batch1/covinfo_met.Rdata";
+sffile = "~/gseq/prog/parcel/C.albicans/parcelResultSunMiaoFast/batch1/edgeR_tpp_sf.Rdata";
+gStruc = "~/gseq/prog/parcel/C.albicans/sunScripts/Candida_Snyder_gStruc.txt"; # "/mnt/projects/sunm/bacteria/fastq/S288C4/sgdGenes_gStruc.Rdata"
+sampleinfofile = "~/gseq/prog/parcel/C.albicans//sampleList_Calb.txt"
+batchid = "batch1"
+ismerge=F
+
+covcutoff = as.numeric(args[1]); # 10
+conditions = args[2]; # atp
+resultdir = args[3]; # analysis_combined/
+covinfo = args[4]; # "yeast_combined_v1all.Rdata"
+sffile = args[5]; # "yeast_combined_v1all_edgeR_sf.Rdata"
+gStruc = args[6]; # "/mnt/projects/sunm/bacteria/fastq/S288C4/sgdGenes_gStruc.Rdata"
+sampleinfofile = args[7]; # sampleinfo.txt
+batchid = args[8];
+ismerge =  ifelse(!is.null(args[9]) & args[9]=="T",T,F);
 sampleInfo = read.table(sampleinfofile,header=T,sep="\t",quote='"',stringsAsFactor=F);
-sampleInfo = sampleInfo[sampleInfo[,"ComparisonBatch"] == batchid,c("Condition","LibID")];
+sampleInfo = sampleInfo[sampleInfo[,"ComparisonBatch"] == batchid,];
+
+if(ismerge){
+  sampleInfo[,"LibID"] = paste(sampleInfo[,"Condition"],sampleInfo[,"Replicates"],sep="__");
+}
+sampleInfo = unique(sampleInfo[,c("Condition","LibID")]);
+
 
 if(grepl("Rdata$",gStruc)){
 	load(gStruc);
@@ -88,158 +222,49 @@ if(grepl("Rdata$",gStruc)){
 }
 
 
-v1 <- readtab(rowinfotab)
-l <- sapply(v1,length)+200
-indexbyid = cumsum(l); # get the row index for each gene
-#p1 <- as.character(unlist(mapply(rep,names(l),l)))
-#p2 <- as.character(unlist(lapply(l,function(x) c(1:x))))
+load(sffile); # load factors for normalization, sf
+load(covinfo); # load coverage information, v1all
+load(paste(resultdir,"etTable_",conditions,".Rdata",sep="")) # load edgeR result, etTable
+load(paste(resultdir,"fastq2_",conditions,"_output10.Rdata",sep="")) # load Evalue result, output
+#thr <- 10/dim(etTable)[1]; # pvalue threshold
+n = sum(rowSums(v1all[,c(-1,-2),with=F]) > (NCOL(v1all)-2)); 
+thr = 10/n; # pvalue threshold 
 
-#load(paste(resultdir,covinfo,sep=""));
-load(covinfo);
-n <- length(which(rowSums(v1all)>NCOL(v1all))) # average count > 1 for given position
-thr <- 10/n # pvalue threshold 
-v1names <- rownames(v1all)
 
 normalizedCountFilter = 10;
 numConditionPassNCF = 2;
 foldcutoff = 2;
-#load(paste(resultdir,sffile,sep=""));
-load(sffile);
 
-#conditions <- c("arg","asn","asp","atp","cys","glucose","gly","his",
-#                "lys","oxal","pro","sam","ser","tpp","trp","tyr","utp","val")
 
-#v1all_scaled = t(t(v1all)*sf);
+
+
+
 #browser();
-for (c in conditions){
-  print(c)
-  load(paste(resultdir,"fastq2_",c,"_output10.Rdata",sep="")) # output
-  load(paste(resultdir,"etTable_",c,".Rdata",sep="")) # etTable
-  group_names <- rep(FALSE,NCOL(v1all))
-  conditionLibIDs = sampleInfo[sampleInfo[,"Condition"]==c,"LibID"];
-  group_names[!is.na(match(colnames(v1all),conditionLibIDs))] <- TRUE
+
+usedCol = sampleInfo[,"LibID"];  
+group_names <- rep(FALSE,NROW(sampleInfo))
+names(group_names) = usedCol;
+conditionLibIDs = sampleInfo[sampleInfo[,"Condition"]==conditions,"LibID"];
+group_names[!is.na(match(names(group_names),conditionLibIDs))] <- TRUE
+
   
-  fc <- maxpos <- dist <- min2 <- pcounts <- lowpass <- numeric()
-  pcpos <- lppos <- character()
-  #output = output[output[,"geneID"]=="orf19.6854",];
-  if(NROW(output)>0){
-    pvaluefilter = rep("nopass",NROW(output)); # adjusted pvalue <= 0.1
-    covfilter = rep("nopass",NROW(output)); # the sites with significant changes should has enough site coverage within candidate region
-    foldfilter =  rep("nopass",NROW(output)); # fold change >=1 1 for at least one site
-    sitecovfilter = rep("nopass",NROW(output)); # coverage filter for sites with engouh fold change 
-    changefilter = rep("nopass",NROW(output)); # read coverage of treatment samples should be consistently greater/less than read coverage of other control samples
-    
-  for (i in 1:NROW(output)){
-    #cat(".");
-    print(output[i,7]);
-    # relative abundance for each transcript
-#   	if(i != 732){
-#       next;
-#   	}
-#     browser();
-    if(output[i,"geneID"]=="orf19.6854"){
-      #browser();
-    } else {
-      #next;
-    }
+fc <- maxpos <- dist <- min2 <- pcounts <- lowpass <- numeric()
+pcpos <- lppos <- character()
 
-    #gpos <- rownames(etTable)%in%(v1names[p1==output[i,7]])
-    upboundinV1 = indexbyid[as.character(output[i,7])] - l[as.character(output[i,7])] + 1;
-    lowerboundinV1 = indexbyid[as.character(output[i,7])];
-    gpos <- rownames(etTable)%in%(v1names[upboundinV1:lowerboundinV1])
-    et <- etTable[gpos,]  
-    
-    #logcpm et[,2], min2[i] is the relative abundance. median + sd
-#    min2[i] <- median(et[is.finite(et[[2]]),2])+sd(et[is.finite(et[[2]]),2]) this criteria is too strigent so that orf19.6854 can not pass the fold change criteria
-    #min2[i] <- median(et[is.finite(et[[2]]),2])
-    min2[i] = quantile(et[is.finite(et[[2]]),2],0.65)
-    pvaluefilter[i] = ifelse(sum(et[[3]]<thr)>0,"pass","nopass");
-		covfilter[i] = ifelse(sum(et[[2]]>=min2[i]&et[[3]]<thr)>0,"pass","nopass");
-		passed <- et[et[[2]]>=min2[i]&et[[3]]<thr,]
-	  passed <- passed[rownames(passed)%in%v1names[output[i,1]:output[i,2]],]
-    ## passed - <- positions passed min2, thr,
-
-		#gStruc is the CDS information start, end of CDS, which is used to annotate the biotype of candidates.
-    g <- gStruc[gStruc$gene==as.character(output[i,7]),]
-    fc[i] <- maxpos[i] <- dist[i] <- pcounts[i] <- lowpass[i] <- 0  
-    pcpos[i] <- lppos[i] <- "none"
-    
-    if (NROW(passed)>0){ # pass the gene coverage information    
-      #print(i);
-      fc[i] <- 2^(max(abs(passed[[1]]))) # fold change filter
-      #if (fc[i]>2){ # if fold change > 2fold
-      if (fc[i]>foldcutoff){ # if fold change > 2fold
-					foldfilter[i] = "pass";				
-#         if(length(maxpos[i]) != length(as.numeric(p2[v1names==rownames(passed[which.max(abs(passed[[1]])),])]))){
-#           browser();
-#         }
-        #maxpos[i] <- as.numeric(p2[v1names==rownames(passed[which.max(abs(passed[[1]])),])])[1]
-        maxpos[i] = as.numeric(substring(rownames(passed[which.max(abs(passed[[1]])),]),nchar(as.character(output[i,7]))+1)); # the rowname is like geneid+pos, so it can be extracted by substr()
-
-        j <- maxpos[i]
-        
-        # get the relative position in transcript, 5UTR negative, CDS position, 3UTR positive + 100.
-        if (j<=g[[2]]) {
-          dist[i] <- j-g[[2]]-1
-        } else if (j>=g[[3]]){
-          dist[i] <- j-g[[3]]+1001
-        } else dist[i] <- (j-g[[2]]+1)*1000/(g[[3]]-g[[2]]-1)
-        passed_pos <- which(v1names%in%rownames(passed[abs(passed[[1]])>=log2(foldcutoff),])) ## only those positions that also pass FC filters
-				
-				#
-        if (length(passed_pos)>1){
-          passed_counts <- t(t(v1all[passed_pos,])*sf) # sf is from  yeast_combined_v1all_edgeR_sf.Rdata
-          pcounts[i] <- as.numeric(length(which(rowSums(passed_counts>normalizedCountFilter)>=numConditionPassNCF))>0)
-	        if(pcounts[i]>0) {
-            pcpos[i] <- paste(passed_pos[which(rowSums(passed_counts>normalizedCountFilter)>=numConditionPassNCF)],collapse=";")
-					  sitecovfilter[i] = "pass";
-	        }
-          passed2 <- passed[match(rownames(passed_counts),rownames(passed)),]  	     
-	        sign <- ifelse(passed2[[1]]>0,TRUE,FALSE) ## TRUE for up, FALSE for down
-
-	        lpstatus <- unlist(lapply(1:NROW(passed2),function(x){
-  		      if (sign[x]){
-  		        return(min(passed_counts[x,group_names])>(mean(passed_counts[x,!group_names])+2*sd(passed_counts[x,!group_names])))
-  		      } else return(max(passed_counts[x,group_names])<(mean(passed_counts[x,!group_names])-2*sd(passed_counts[x,!group_names])))
-	        }));
-
-	        lowpass[i] <- sum(as.numeric(lpstatus))>0
-	        if (lowpass[i]>0) lppos[i] <- paste(passed_pos[lpstatus],collapse=";")
-
-        } else {
-          passed_counts <- v1all[passed_pos,]*sf
-          pcounts[i] <- as.numeric(sum(passed_counts>normalizedCountFilter)>=numConditionPassNCF)
-	        if (pcounts[i]>0) {
-            pcpos[i] <- passed_pos;
-            sitecovfilter[i] = "pass";
-	        }
-
-          if (passed$logFC[abs(passed[[1]])>log2(foldcutoff)]>0) { # increasing/decreasing of V1 signal 
-            lowpass[i] <- as.numeric(min(passed_counts[group_names]) > mean(passed_counts[!group_names])+2*sd(passed_counts[!group_names]))
-          } else {
-            lowpass[i] <- as.numeric(max(passed_counts[group_names]) < mean(passed_counts[!group_names])-2*sd(passed_counts[!group_names]))            
-          }
-	        if (lowpass[i]>0) {
-	        	lppos[i] <- passed_pos;
-	        	changefilter[i] = "pass";
-	        }
-        }
-      }
-    }
-  }
- }
-  originaloutput <- data.frame(output,maxPos=maxpos,maxFC=fc,m1sd=min2,dist=dist,pcounts,pcpos,lowpass,lppos,pvaluefilter,covfilter,foldfilter,sitecovfilter,changefilter);
-  output2 <- data.frame(output,maxPos=maxpos,maxFC=fc,m1sd=min2,dist=dist,pcounts,pcpos,lowpass,lppos)[fc>foldcutoff,]
-  print(paste(c,": ",NROW(output2[output2$pcounts>0&output2$lowpass>0,]),"positive",sep=""));
-  if (NROW(output2[output2$pcounts>0&output2$lowpass>0,])>0){ 
-     output2b <- output2[output2$pcounts>0&output2$lowpass>0,] 
-     save(output2b,originaloutput,file=paste(resultdir,"combined_",c,"_output2_wfilters.Rdata",sep=""))
-     write.table(output2b,file=paste(resultdir,"combined_",c,"_output2_wfilters.txt",sep=""),col.names=T,row.names=F,sep="\t",quote=F);
-  } else {
-     output2b = output2
-     save(output2,originaloutput,file=paste(resultdir,"combined_",c,"_output2_wfilters.Rdata",sep=""))
-     write.table(output2b,file=paste(resultdir,"combined_",c,"_output2_wfilters.txt",sep=""),col.names=T,row.names=F,sep="\t",quote=F);
-  }
+if(NROW(output)>0){
+  mainCols = names(output);
+  output[,evaluefilter:="nopass"];
+  output[E_value<=10,evaluefilter:="pass"];
+  v1all  = v1all[chr %in% output[evaluefilter=="pass",chr],];
+  output[,rowid:=.I];
+  returnVars = c("maxPos","maxFC","m1sd","dist","pcounts","pcpos","lowpass","lppos","pvaluefilter","covfilter","foldfilter","sitecovfilter","changefilter")
+  output[evaluefilter == "pass", (returnVars):= filterOutput(.SD),by = rowid];
+  originaloutput <- output;
+  finalCols = c(mainCols,"maxPos","maxFC","m1sd","dist","pcounts","pcpos","lowpass","lppos");
+  output2 <- output[changefilter=="pass",finalCols,with=F];
+  print(paste(conditions,": ",NROW(output2),"positive",sep=""));
+  save(output2,originaloutput,file=paste(resultdir,"combined_",conditions,"_output2_wfilters.Rdata",sep=""))
+  write.table(output2,file=paste(resultdir,"combined_",conditions,"_output2_wfilters.txt",sep=""),col.names=T,row.names=F,sep="\t",quote=F);
 }
 
   
