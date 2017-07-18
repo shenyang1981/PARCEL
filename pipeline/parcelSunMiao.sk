@@ -100,11 +100,11 @@ rule final:
 		expand(config["PARCELDIR"] + config["COMPAREBATCH"] + "/" + "combined_{treatment}_output2_wfilters.txt",treatment = TREATMENTS),
 		expand(config["PARCELDIR"] + config["COMPAREBATCH"] + "/" + "combined_{treatment}_output2_wfilters.bed",treatment = TREATMENTS),
 		expand(config["PARCELDIR"] + config["COMPAREBATCH"] + "/" + "{treatment}_covplot/sigRegion.xls",treatment = TREATMENTS),
-		expand(config["PARCELDIR"] + config["COMPAREBATCH"] + "/" + "{treatment}_covplot/sigRegion.highlightSeq.xls",treatment = TREATMENTS)
+		expand(config["PARCELDIR"] + config["COMPAREBATCH"] + "/" + "{treatment}_covplot/sigRegion.highlightSeq.xls",treatment = TREATMENTS),
+		get_bedgraph_files
 		#expand(RESULTDIR + "Filter_" + '{treatment}' + "_" + config["TOPCOV"] + "_" + config["COMPAREBATCH"] + "_" + config["CONTROL"] + "_" + '{treatment}' + "_" + OUTPUTDIRCOV["AUTOBATCH"][config["AUTOBATCH"]] + "_" + OUTPUTDIRCOV["VSALL"][config["VSALL"]] + "_" + config["COVMIN"] + "_" + config["EVALUECUT"] + "_" + config["WFC"] + "/covplot/" + "sigRegion.xls", treatment = TREATMENTS),
 		#expand(RESULTDIR + "Site_" + '{treatment}' + "_" + config["TOPCOV"] + "_" + config["COMPAREBATCH"] + "_" + config["CONTROL"] + "_" + '{treatment}' + "_" + OUTPUTDIRCOV["AUTOBATCH"][config["AUTOBATCH"]] + "_" + OUTPUTDIRCOV["VSALL"][config["VSALL"]] + "_" + config["COVMIN"] + "/" + "sigRegion.bed", treatment = TREATMENTS),
 		#expand(RESULTDIR + "Gene_" + '{treatment}' + "_" + config["COMPAREBATCH"] + "_" + config["CONTROL"] + "_" + '{treatment}' + "_" + OUTPUTDIRCOV["AUTOBATCH"][config["AUTOBATCH"]] + "_" + OUTPUTDIRCOV["VSALL"][config["VSALL"]] + "_" + config["COVMIN"] + "/" + "geneDiff.txt", treatment = TREATMENTS),
-		#get_bedgraph_files
 		#config["TABDIR"] + "allcov.wide.min100" + ".txt.gz",
 		#condition = lambda wildcards: CONDITIONS[wildcards.id],
 		#expand(config["BEDGRAPHDIR"] + CONDITIONS[{id}] + '_{id}.bedgraph.gz', zip, zip, id=LIBIDS, seqbatch=SEQBATCHS)
@@ -166,23 +166,24 @@ rule mapToGenome:
 		"""
 			MISMATCH={params.mismatch} sh {config[MAP_WAPPER]} {input} {threads} {params.genome} {output.maplog} {output.bamresultTmp}
 			{config[SAMTOOLS]} sort -@ {threads} -T {wildcards.id} -m 1G -O BAM {output.bamresultTmp} > {output.bamresult}
+			{config[SAMTOOLS]} index {output.bamresult}
 			ID={wildcards.id} perl {config[SUM_MAPLOG]} {output.maplog} > {output.logsum}
 		"""
 
-#rule bedgraphTrack:
-#	input:
-#		bamresult = rules.mapToGenome.output.bamresult
-#	output:
-#		#config["BEDGRAPHDIR"] + CONDITIONS.get({id}) + '_{id}.bedgraph.gz'
+rule bedgraphTrack:
+	input:
+		bamresult = rules.mapToGenome.output.bamresult
+	output:
+		#config["BEDGRAPHDIR"] + CONDITIONS.get({id}) + '_{id}.bedgraph.gz'
 #		#condition = lambda wildcards: CONDITIONS[wildcards.id]
 #		#config["BEDGRAPHDIR"] + lamda wildcards: CONDITIONS[wildcards.id] + '_{id}.bedgraph.gz'
-#		config["BEDGRAPHDIR"] + config["COMPAREBATCH"] + "/" + "{condition}_{id}_{seqbatch}_nor.bedgraph.gz"
-#	params:
-#		condition = lambda wildcards: CONDITIONS[wildcards.id]
-#	shell:
-#		"""
-#			COVMIN=0 FIVEPOS=yes perl {config[TOBEDGRAPH]} {input.bamresult} {params.condition}_{wildcards.id}_nor {config[BEDGRAPH_SPE]} yes yes no | pigz -c -p 8 > {output}
-#		"""
+		config["BEDGRAPHDIR"] + config["COMPAREBATCH"] + "/" + "{condition}_{id}_{seqbatch}_nor.bedgraph.gz"
+	params:
+		condition = lambda wildcards: CONDITIONS[wildcards.id]
+	shell:
+		"""
+			COVMIN=0 FIVEPOS=yes perl {config[TOBEDGRAPH]} {input.bamresult} {params.condition}_{wildcards.id}_nor {config[BEDGRAPH_SPE]} yes yes no | pigz -c -p 8 > {output}
+		"""
 
 rule collectMapLog:
 	input:
