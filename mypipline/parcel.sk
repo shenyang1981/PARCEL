@@ -1,0 +1,420 @@
+from snakemake.utils import R
+from os.path import join
+import csv
+
+# simulate a bash login shell, see https://bitbucket.org/johanneskoester/snakemake/wiki/FAQ
+shell.executable("/bin/bash")
+#
+# # "unofficial bash strict mode" http://www.redsymbol.net/articles/unofficial-bash-strict-mode/
+shell.prefix("source ~/.bashrc; set -euo pipefail;")
+#
+#
+
+# Globals ---------------------------------------------------------------------
+
+# get the seqbatch : libid pairs for given comparebatch id
+LIBIDS = []
+SEQBATCHS = []
+SEQDIR = []
+SEQFILES = []
+TREATMENTS = []
+sampleinfo = open(config["SAMPLEINFO"],"r",newline='')
+for line in sampleinfo:
+	allelems = line.strip().split("\t");
+	if allelems[6] == config["COMPAREBATCH"]:
+		LIBIDS.append(allelems[1])
+		SEQBATCHS.append(allelems[4])
+		SEQDIR.append(allelems[8])
+		SEQFILES.append(allelems[8] + allelems[7])
+		if allelems[2] != config["CONTROL"]:
+			TREATMENTS.append(allelems[2])
+
+TREATMENTS = list(set(TREATMENTS))
+
+#print(LIBIDS)
+#print(SEQBATCHS)
+
+# get condition and id pair
+CONDITIONS = {}
+sampleinfo = open(config["SAMPLEINFO"],"r",newline='')
+for line in sampleinfo:
+	CONDITIONS[line.split("\t")[1]] = line.split("\t")[2]
+
+
+###################################################################################
+# for calling differential sites
+###################################################################################
+
+OUTPUTDIRCOV = {
+ "AUTOBATCH": {
+    "T": "Batch",
+    "F": "NoBatch"
+ },
+ "VSALL": {
+    "T": "vsAll",
+    "F": "onlyControl"
+ },
+}
+
+RESULTDIR = config["PARCELDIR"] + config["COMPAREBATCH"] + "/"
+
+#GENEDIFFPRE = config["PARCELDIR"] + "Gene_" + {wildcards.treatment}
+#GENEDIFFDIR = GENEDIFFPRE + "_" + SUFFIX + "/"
+#
+#FILTERPRE = config["PARCELDIR"] + "Filter_" + {wildcards.treatment} + "_" + config["TOPCOV"] 
+#FILTERDIR = FILTERPRE + "_" + SUFFIX + "_" + config["EVALUECUT"] + "_" + config["WFC"] + "/"
+
+
+# define function to convert id to sample name
+
+
+#getSampleInfo <- function(configfile,id,querykey) {
+#	mydata = read.table(configfile,header=T,sep="\t");
+#	result = mydata[mydata[,"LibID"]==id,querykey];
+#	return(result);
+#    # R code
+#}
+#
+#
+
+# snakemake -np  -s cutadaptor.sk --configfile conf-cutadaptor.json  --dag |  dot -Tsvg > dag.svg
+
+def get_bedgraph_files(wc):
+	return [config["BEDGRAPHDIR"] + config["COMPAREBATCH"] + "/" + CONDITIONS[LIBIDS[k]] + '_{}'.format(LIBIDS[k]) + '_{}_nor.bedgraph.gz'.format(SEQBATCHS[k]) for k in range(len(LIBIDS))]
+
+rule final:
+	input: 
+		#expand("/home/sheny/prog/parcel/Yeast/Fastq/MUX3857/{id}.fastq.gz", zip, id=LIBIDS, seqbatch=SEQBATCHS)
+		#expand(config["TRIMDIR"] + '{id}.trim.fastq', zip, id=LIBIDS, seqbatch=SEQBATCHS)
+		#expand(config["TRIMDIR"] + 'read.trim.{id}.log.sum', zip, id=LIBIDS, seqbatch=SEQBATCHS)
+		#expand(config["TRIMDIR"] + 'read.trim.{id}.log', zip, id=LIBIDS, seqbatch=SEQBATCHS)
+		#expand(config["MAPBAMS"] + '{id}.trim.fastq.genome_mapping_best_sort.bam', zip, id=LIBIDS, seqbatch=SEQBATCHS),
+		#config["TRIMDIR"] + "trimSummary.txt",
+		#config["MAPBAMS"] + "mapSummary.txt",
+		#expand(config["TRIMDIR"] + "{seqbatch}/" + "read.trim.{id}.log.sum", zip, seqbatch = SEQBATCHS, id = LIBIDS),
+		config["COVDIR"] + config["COMPAREBATCH"] + "/" + "allcov.wide.min" + config["COVMIN"] + ".txt.gz",
+		#config["COVDIR"] + config["COMPAREBATCH"] + "/" + "allgenecov.wide" + ".txt.gz",
+		config["QUALCHECKDIR"] + config["COMPAREBATCH"] + "/" + "processingSummary.xls",
+		expand(RESULTDIR + "Filter_" + '{treatment}' + "_" + config["TOPCOV"] + "_" + config["COMPAREBATCH"] + "_" + config["CONTROL"] + "_" + '{treatment}' + "_" + OUTPUTDIRCOV["AUTOBATCH"][config["AUTOBATCH"]] + "_" + OUTPUTDIRCOV["VSALL"][config["VSALL"]] + "_" + config["COVMIN"] + "_" + config["EVALUECUT"] + "_" + config["WFC"] + "/covplot/" + "sigRegion.xls", treatment = TREATMENTS),
+		expand(RESULTDIR + "Filter_" + '{treatment}' + "_" + config["TOPCOV"] + "_" + config["COMPAREBATCH"] + "_" + config["CONTROL"] + "_" + '{treatment}' + "_" + OUTPUTDIRCOV["AUTOBATCH"][config["AUTOBATCH"]] + "_" + OUTPUTDIRCOV["VSALL"][config["VSALL"]] + "_" + config["COVMIN"] + "_" + config["EVALUECUT"] + "_" + config["WFC"] + "/covplot/" + "sequencesRegionIDLocus.clean.fas", treatment = TREATMENTS),
+		#expand(RESULTDIR + "Site_" + '{treatment}' + "_" + config["TOPCOV"] + "_" + config["COMPAREBATCH"] + "_" + config["CONTROL"] + "_" + '{treatment}' + "_" + OUTPUTDIRCOV["AUTOBATCH"][config["AUTOBATCH"]] + "_" + OUTPUTDIRCOV["VSALL"][config["VSALL"]] + "_" + config["COVMIN"] + "/" + "sigRegion.bed", treatment = TREATMENTS),
+		#expand(RESULTDIR + "Gene_" + '{treatment}' + "_" + config["COMPAREBATCH"] + "_" + config["CONTROL"] + "_" + '{treatment}' + "_" + OUTPUTDIRCOV["AUTOBATCH"][config["AUTOBATCH"]] + "_" + OUTPUTDIRCOV["VSALL"][config["VSALL"]] + "_" + config["COVMIN"] + "/" + "geneDiff.txt", treatment = TREATMENTS),
+		get_bedgraph_files
+		#config["COVDIR"] + "allcov.wide.min100" + ".txt.gz",
+		#condition = lambda wildcards: CONDITIONS[wildcards.id],
+		#expand(config["BEDGRAPHDIR"] + CONDITIONS[{id}] + '_{id}.bedgraph.gz', zip, zip, id=LIBIDS, seqbatch=SEQBATCHS)
+		#expand(config["BEDGRAPHDIR"] + CONDITIONS.get("{id}") + '_{id}.bedgraph.gz', zip, id=LIBIDS, seqbatch=SEQBATCHS)
+		#expand(config["BEDGRAPHDIR"] + '{id}.bedgraph.gz',zip, id=LIBIDS, seqbatch=SEQBATCHS)
+		#config["BEDGRAPHDIR"] + '{id}.bedgraph.gz'
+		#"./test.txt"
+
+rule trimAdaptor:
+	input: 
+		config["INPUTDIR"] + "{seqbatch}/" + "{id}.fastq.gz"
+		#get_input_files
+	output: 
+		trimseq = config["TRIMDIR"] + "{seqbatch}/" + "{id}.trim.fastq.gz",
+		trimseqTemp = temp(config["TRIMDIR"] + "{seqbatch}/" + "{id}.trim.fastq"),
+		trimlog = config["TRIMDIR"] + "{seqbatch}/" + "read.trim.{id}.log"
+		#trimsum = config["TRIMDIR"] + "{seqbatch}/" + "read.trim.{id}.log.sum"
+	params:
+		adp1={config["ADAPTER"]["A"]}, adp2={config["ADAPTER"]["B"]}
+
+	log: config["TRIMDIR"] + "{seqbatch}/" + "/read.trim.{id}.err"
+	threads: 16
+	shell:
+		#ID={wildcards.id} perl {config[PARSE_CUT_ADT]} {output.trimlog} > {output.trimsum}
+		#{config[CUTADPT]} -a AP1={params.adp1} -g AP2={params.adp2} -n 2 -O 5 -y 'FOUND__{{name}}__' -m 20 -o {output.trimseqTemp} {input} > {output.trimlog} 
+		"""
+			bash {config[CUTADPT]} {input} {output.trimseqTemp} {params.adp1} {params.adp2} {threads} {output.trimlog} 
+			pigz -c -p {threads} {output.trimseqTemp} > {output.trimseq}
+		"""
+
+rule parseAdpTrimLog:
+	input:
+		rules.trimAdaptor.output.trimlog
+	output:
+		trimsum = config["TRIMDIR"] + "{seqbatch}/" + "read.trim.{id}.log.sum"
+	shell:
+		"""
+			ID={wildcards.id} perl {config[PARSE_CUT_ADT]} {input} > {output.trimsum}
+
+		"""
+
+
+rule collectAdpTrimLog:
+	input:
+		expand(config["TRIMDIR"] + "{seqbatch}/" + 'read.trim.{id}.log.sum', zip, id=LIBIDS, seqbatch=SEQBATCHS)
+	output:
+		config["TRIMDIR"] + config["COMPAREBATCH"] + "/" + "trimSummary.txt"
+	shell:
+		"""
+			cat {input} > {output}
+		"""
+
+rule mapToGenome:
+	input:
+		rules.trimAdaptor.output.trimseq
+	output:
+		bamresult = config["MAPBAMS"] + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping_best_sort.bam",
+		bamindex = config["MAPBAMS"] + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping_best_sort.bam.bai",
+		maplog = config["MAPBAMS"] + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping.log",
+		logsum = config["MAPBAMS"] + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping.summary"
+		
+	params:
+		mismatch = config["MISMATCH"],
+		seqbatch = lambda wildcards: wildcards.seqbatch,
+		outdir = config["MAPBAMS"] + "{seqbatch}",
+		mapmodel = config["MAPMODEL"],
+		genome = config["REFGENOME"]
+	threads: 16
+	shell:
+		"""
+			REPLACE=yes CPUNUM={threads} MISMATCH={params.mismatch} perl {config[MAP_WAPPER]} {input} {params.outdir} {params.mapmodel} {params.genome}
+			ID={wildcards.id} perl {config[SUM_MAPLOG]} {output.maplog} > {output.logsum}
+		"""
+
+rule bedgraphTrack:
+	input:
+		bamresult = rules.mapToGenome.output.bamresult
+	output:
+		#config["BEDGRAPHDIR"] + CONDITIONS.get({id}) + '_{id}.bedgraph.gz'
+		#condition = lambda wildcards: CONDITIONS[wildcards.id]
+		#config["BEDGRAPHDIR"] + lamda wildcards: CONDITIONS[wildcards.id] + '_{id}.bedgraph.gz'
+		config["BEDGRAPHDIR"] + config["COMPAREBATCH"] + "/" + "{condition}_{id}_{seqbatch}_nor.bedgraph.gz"
+	params:
+		condition = lambda wildcards: CONDITIONS[wildcards.id]
+	shell:
+		"""
+			COVMIN=0 FIVEPOS=yes perl {config[TOBEDGRAPH]} {input.bamresult} {params.condition}_{wildcards.id}_nor {config[BEDGRAPH_SPE]} yes yes no | pigz -c -p 8 > {output}
+		"""
+
+rule collectMapLog:
+	input:
+		expand(config["MAPBAMS"] + "{seqbatch}/" + '{id}.trim.fastq.genome_mapping.summary', zip, id=LIBIDS, seqbatch=SEQBATCHS)
+	output:
+		config["MAPBAMS"] + config["COMPAREBATCH"] + "/" + "mapSummary.txt"
+	shell:
+		"""
+			cat {input} > {output}
+		"""
+
+rule coverageCountGene:
+	input:
+		bamresult = rules.mapToGenome.output.bamresult
+	output:
+		config["COVDIR"] + "{seqbatch}/" + "{id}.genecov.txt.gz"
+	threads: 4 
+	params: numhit = config["NUMHIT"] 
+	shell:
+		"""
+			NUMHIT={params.numhit} sh {config[BAMTOGENECOUNT]} {input.bamresult} {config[GENEEXONBED]} {wildcards.id} | pigz -p {threads} -c > {output} 
+		"""
+
+rule collectCovCountGene:
+	input:
+		expand(config["COVDIR"] + "{seqbatch}/" + "{id}.genecov.txt.gz", zip, id=LIBIDS, seqbatch=SEQBATCHS)
+	output:
+		config["COVDIR"] + config["COMPAREBATCH"] + "/" + "allgenecov.txt.gz"
+	threads: 8
+	shell:
+		"""
+			zcat {input} | pigz -p {threads} -c > {output}
+		"""
+
+rule reshapeCovCountGene:
+	input:
+		rules.collectCovCountGene.output
+	output:
+		config["COVDIR"] +config["COMPAREBATCH"] + "/" +  "allgenecov.wide" + ".txt.gz"
+	threads: 1
+	params:
+		splitby = config["SPLITBY"], sampleinfo = config["SAMPLEINFO"]
+	shell:
+		"""
+			Rscript {config[RESHAPETABLE]} -i {input} -o {output} -v V3 -f V1+V2~V4 --header F --filterbySum 0 --splitBy {params.splitby} --sampleinfo  {params.sampleinfo}
+		"""
+
+rule coverageCountRibo:
+	input:
+		bamresult = rules.mapToGenome.output.bamresult
+	output:
+		config["COVDIR"] + "{seqbatch}/" + "{id}.ribocov.txt.gz"
+	threads: 4 
+	params: numhit = config["NUMHIT"] 
+	shell:
+		"""
+			NUMHIT={params.numhit} sh {config[BAMTOGENECOUNT]} {input.bamresult} {config[RIBOEXONBED]} {wildcards.id} | pigz -p {threads} -c > {output} 
+		"""
+
+rule collectCovCountRibo:
+	input:
+		expand(config["COVDIR"] + "{seqbatch}/" + "{id}.ribocov.txt.gz", zip, id=LIBIDS, seqbatch=SEQBATCHS)
+	output:
+		config["COVDIR"] + config["COMPAREBATCH"] + "/" + "allribocov.txt.gz"
+	threads: 8
+	shell:
+		"""
+			zcat {input} | pigz -p {threads} -c > {output}
+		"""
+
+rule reshapeCovCountRibo:
+	input:
+		rules.collectCovCountRibo.output
+	output:
+		config["COVDIR"] +config["COMPAREBATCH"] + "/" +  "allribocov.wide" + ".txt.gz"
+	threads: 1
+	params:
+		splitby = config["SPLITBY"], sampleinfo = config["SAMPLEINFO"]
+	shell:
+		"""
+			Rscript {config[RESHAPETABLE]} -i {input} -o {output} -v V3 -f V1+V2~V4 --header F --filterbySum 0 --splitBy {params.splitby} --sampleinfo  {params.sampleinfo}
+		"""
+
+rule coverageCount:
+	input:
+		bamresult = rules.mapToGenome.output.bamresult
+	output:
+		config["COVDIR"] + "{seqbatch}/" + "{id}.cov.txt.gz"
+	threads: 4,
+	params: numhit = config["NUMHIT"] 
+	shell:
+		"""
+			NUMHIT={params.numhit} sh {config[BAMTOCOV]} {input.bamresult} {wildcards.id} {config[GENOMESIZE]} | pigz -p {threads} -c > {output} 
+		"""
+
+rule collectCovCount:
+	input:
+		expand(config["COVDIR"] + "{seqbatch}/" + "{id}.cov.txt.gz", zip, id=LIBIDS, seqbatch=SEQBATCHS)
+	output:
+		config["COVDIR"] + config["COMPAREBATCH"] + "/" + "allcov.txt.gz"
+	threads: 8
+	shell:
+		"""
+			zcat {input} | pigz -p {threads} -c > {output}
+		"""
+
+rule reshapeCovCount:
+	input:
+		rules.collectCovCount.output
+	output:
+		config["COVDIR"] + config["COMPAREBATCH"] + "/" + "allcov.wide.min" + config["COVMIN"] + ".txt.gz"
+	params:
+		splitby = config["SPLITBY"], sampleinfo = config["SAMPLEINFO"]
+	threads: 1
+	shell:
+		"""
+			Rscript {config[RESHAPETABLE]} -i {input} -o {output} -v V3 -f V1+V2~V4 --header F --filterbySum {config[COVMIN]} --splitBy {params.splitby} --sampleinfo {params.sampleinfo}
+		"""
+
+rule reshapeCovCountHigh:
+	input:
+		rules.collectCovCount.output
+	output:
+		config["COVDIR"] + config["COMPAREBATCH"] + "/" + "allcov.wide.min100" + ".txt.gz"
+	params:
+		splitby = config["SPLITBY"], sampleinfo = config["SAMPLEINFO"]
+	threads: 1
+	shell:
+		"""
+			Rscript {config[RESHAPETABLE]} -i {input} -o {output} -v V3 -f V1+V2~V4 --header F --filterbySum 100 --splitBy {params.splitby} --sampleinfo {params.sampleinfo}
+		"""
+rule qualityCheck:
+	input:
+		highcov = rules.reshapeCovCountHigh.output,
+		sampleinfo = config["SAMPLEINFO"],
+		trimlog = rules.collectAdpTrimLog.output,
+		maplog = rules.collectMapLog.output,
+	output:
+		pwheatmap = config["QUALCHECKDIR"] + config["COMPAREBATCH"] + "/" + "pairwiseHeatmap.pdf",
+		proSum = config["QUALCHECKDIR"] + config["COMPAREBATCH"] + "/" + "processingSummary.xls",
+		proSumPlot = config["QUALCHECKDIR"] + config["COMPAREBATCH"] + "/" + "SummaryOfProcessing.pdf"
+	params:
+		outdir = config["QUALCHECKDIR"] + config["COMPAREBATCH"], batch = config["COMPAREBATCH"]
+	shell:
+		"""
+			Rscript {config[QUALCHECKSCRIPT]} {input.highcov} {input.sampleinfo} {input.trimlog} {input.maplog} {params.batch} F 10 {params.outdir}
+		"""
+		
+		
+EVALUEPRE = RESULTDIR + "Site_{treatment}" + "_" + config["TOPCOV"]
+EVALUEDIR = EVALUEPRE + "_{suffix}/"
+
+rule calldiffsites:
+	input:
+		covfile = rules.reshapeCovCount.output 
+	output: 
+		evaluefile = EVALUEDIR + "sigRegion.bed",
+		diffsitefile = EVALUEDIR + "diffSites.txt.gz",
+		diffsitePvaluefile = EVALUEDIR + "diffSites.Pvalue.bed",
+		pvalueBed = EVALUEDIR + "diffSites.Pvalue.bedgraph.gz",
+		foldBed = EVALUEDIR + "diffSites.fold.bedgraph.gz",
+		sitecovfile = EVALUEDIR  + "all.cov.txt",
+		siterawcovfile = EVALUEDIR + "all.cov.raw.txt"
+	params:
+		treatment = lambda wildcards: wildcards.treatment, suffix = lambda wildcards: wildcards.suffix, control = config["CONTROL"], batch = config["COMPAREBATCH"], mincov = config["COVMIN"],
+		vsall = config["VSALL"], topcov = config["TOPCOV"], autobatch = config["AUTOBATCH"], exactTest = config["EXACTTEST"], chrcov = config["CHRCOV"],
+		posfile = config["POSFILE"], sampleinfo = config["SAMPLEINFO"], outdir = EVALUEPRE, chrsize = config["GENOMESIZE"], ismerge = config["ISMERGE"]
+
+	threads: 4 
+	shell:
+		"""
+			Rscript {config[REGIONEVALUE]} -i {input.covfile} -s {params.sampleinfo} -t {params.treatment} -c {params.control} -o {params.outdir} -b {params.batch} --topCov {params.topcov} --autobatch {params.autobatch} --exactTest {params.exactTest} --vsall {params.vsall} --mincov {params.mincov} --ChrCov {params.chrcov} --chrsize {params.chrsize} --ismerge {params.ismerge}
+			zcat {output.diffsitefile} | sh {config[PVALUETOBED]} {wildcards.treatment} | pigz -p {threads} -c > {output.pvalueBed}
+			zcat {output.diffsitefile} | sh {config[FOLDTOBED]} {wildcards.treatment} | pigz -p {threads} -c > {output.foldBed}
+		"""
+GENEDIRPRE = RESULTDIR + "Gene_{treatment}" + "_" + config["TOPCOV"]
+GENEDIR = GENEDIRPRE + "_{suffix}/"
+
+rule calldiffGenes:
+	input: 
+		countfile = rules.reshapeCovCountGene.output
+	output: 
+		genediff = GENEDIR + "geneDiff.txt"
+	params:
+		sampleinfo = config["SAMPLEINFO"],suffix = rules.calldiffsites.params.suffix,treatment = rules.calldiffsites.params.treatment, 
+		control = config["CONTROL"], batch = config["COMPAREBATCH"], vsall = config["VSALL"], mincov = config["COVMIN"],
+		autobatch = config["AUTOBATCH"], exactTest = config["EXACTTEST"], outdir = GENEDIRPRE, ismerge = config["ISMERGE"]
+
+	threads: 1
+	shell:
+		"""
+			Rscript {config[REGIONEVALUE]} -i {input.countfile} -s {params.sampleinfo} -t {params.treatment} -c {params.control} -o {params.outdir} -b {params.batch} --autobatch {params.autobatch} --exactTest {params.exactTest} --vsall {params.vsall} --topCov 0 --diffGene T --mincov {params.mincov} --ismerge {params.ismerge}
+		"""
+
+rule filterCandidates:
+	input:
+		diffsitefile = rules.calldiffsites.output.diffsitefile,
+		evaluefile = rules.calldiffsites.output.evaluefile,
+		genediff = rules.calldiffGenes.output.genediff
+	output:
+		filtercands = RESULTDIR + "Filter_{treatment}_" + config["TOPCOV"] + "_{suffix}_" + config["EVALUECUT"] + "_" + config["WFC"] + "/" + "sigRegionFinal.xls"
+	params:
+		nrexonbed = config["GENEEXONBED"],treatment = lambda wildcards: wildcards.treatment, topcov = config["TOPCOV"], batch = config["COMPAREBATCH"],
+		autobatch = config["AUTOBATCH"], suffix = lambda wildcards: wildcards.suffix, outdir = RESULTDIR + "Filter_{treatment}_" + config["TOPCOV"] + "_{suffix}_" + config["EVALUECUT"] + "_" + config["WFC"],covfiledir = EVALUEDIR, posfile = config["POSFILE"]
+	shell:
+		"""
+			Rscript {config[FILTERCANDS]} -o {params.outdir}  -l {params.nrexonbed} -d {params.covfiledir}  --genediff {input.genediff} --positiveRegion {params.posfile}
+		"""
+
+rule coveragePlot:
+	input:
+		filtercands = rules.filterCandidates.output.filtercands,
+		siterawcov = rules.calldiffsites.output.siterawcovfile
+		
+	output:
+		sigregion = rules.filterCandidates.params.outdir + "/covplot/sigRegion.xls",
+		sequences = rules.filterCandidates.params.outdir + "/covplot/sequences.fas",
+		sequencesID = rules.filterCandidates.params.outdir + "/covplot/sequencesRegionIDLocus.clean.fas",
+		ribocov = rules.filterCandidates.params.outdir + "/covplot/covinfo.xls"
+		
+	params:
+		sampleinfo = config["SAMPLEINFO"], nrexonbed = config["GENEEXONBED"], treatment = lambda wildcards: wildcards.treatment, control = config["CONTROL"], 
+		topcov = config["TOPCOV"], batch = config["COMPAREBATCH"], autobatch = config["AUTOBATCH"], genome = config["GENOMEFASTA"], cdsbed = config["CDSBED"],
+		outdir = rules.filterCandidates.params.outdir + "/covplot/",vsall = config["VSALL"],intronbed = config["INTRONBED"], ismerge = config["ISMERGE"]
+	threads: 2
+	shell:
+		"""
+			Rscript {config[COVPLOT]} -o {params.outdir} -i {input.filtercands} -s {params.sampleinfo} -b {params.batch} -t {params.treatment} -c {params.control} --covfile {input.siterawcov} --genome {params.genome} --getFasta T --CDSBed {params.cdsbed} --intronBed {params.intronbed} --vsall {params.vsall} --exonBed {params.nrexonbed} --genomeSize {config[GENOMESIZE]} --ismerge {params.ismerge}
+		"""
+
