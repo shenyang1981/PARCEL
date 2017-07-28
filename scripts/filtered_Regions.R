@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 ## adding filters to the called regions
 # a). p-val < 10/n
 # b). rel. abundance within transcript > median+sd

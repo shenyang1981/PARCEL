@@ -1,12 +1,13 @@
 {
+    "_comments": "$HOME, $PARCELDB and $PARCELSCRIPTS should be defined in advance",
     "_comments": "parameters for cutting adaptor and mapping",
     "ADAPTER": {
         "A": "AGATCGGAAGAGCAC",
         "B": "CTACAGTCCGACGATC",
     },
-    "SAMPLEINFO": "/home/sheny/prog/parcel/C.albicans/sampleList_Calb.txt",
-    "INPUTDIR": "/home/sheny/prog/parcel/C.albicans/fastq/",
-    "RESULTROOT": "/home/sheny/prog/parcel/C.albicans/parcelResultSunMiaoFast/",
+    "SAMPLEINFO": "${HOME}/prog/parcel/C.albicans/sampleList_Calb.txt",
+    "INPUTDIR": "${HOME}/prog/parcel/C.albicans/fastq/",
+    "RESULTROOT": "${HOME}/prog/parcel/C.albicans/parcelResultSunMiaoFast/",
     "COMPAREBATCH": "batch45",
     "CONTROL": "glu100",
 
@@ -28,27 +29,28 @@
     "MAPMODEL": "global",
 
     "_comments": "files used in mapping",
-    "REFTRANSCRIPT": "/home/sheny/prog/parcel/C.albicans/sunRef/C_albicans_orf_addUTRs",
-    "REFTRANSCRIPTFASTA": "/home/sheny/prog/parcel/C.albicans/sunRef/C_albicans_genes_Snyder_UTRs.fa",
-    "TRANSCRIPTOMESIZE": "/home/sheny/prog/sunm/others/candida2/ref/C_albicans_genes_Snyder_UTRs.fa.size",
-    "GENESTRUC": "/home/sheny/prog/parcel/C.albicans/sunScripts/Candida_Snyder_gStruc.txt",
+    "REFTRANSCRIPT": "${PARCELDB}/C.albican/C_albicans_orf_addUTRs",
+    "REFTRANSCRIPTFASTA": "${PARCELDB}/C.albican/C_albicans_genes_Snyder_UTRs.fa",
+    "TRANSCRIPTOMESIZE": "${PARCELDB}/C.albican/C_albicans_genes_Snyder_UTRs.fa.size",
+    "GENESTRUC": "${PARCELDB}/C.albican/Candida_Snyder_gStruc.txt",
     "BEDGRAPH_SPE": "CandidaTr",
 
     "_comments": "scripts for cutting adaptor and mapping",
-    "SAMTOOLS": "/home/sheny/anaconda3/envs/snakemake-tutorial/bin/samtools",
-    "BAMTOCOV": "/home/sheny/prog/mygithub/parcelTranscriptome/scripts/BamToPosCount.sh",
-    "PARSE_CUT_ADT": "/home/sheny/prog/parcel/scripts/parseCutAptLog.pl",
-    "CUTADPT": "/home/sheny/prog/script/parallel_cutadpt.sh",
-    "MAP_WAPPER": "/home/sheny/prog/parcel/scripts/sunScripts/mapReadsToTranscriptom.sh",
-    "SUM_MAPLOG": "/home/sheny/prog/parcel/scripts/sumBowtieMapResult.pl",
-    "TOBEDGRAPH": "/home/sheny/prog/script/bedGraphTrack.pl",
-    "RESHAPETABLE": "/home/sheny/prog/script/reshapeTable.R",
-    "QUALCHECKSCRIPT": "/home/sheny/prog/parcel/scripts/sunScripts/qualityCheckMiao.R",
-
+    "SAMTOOLS": "${HOME}/anaconda3/envs/snakemake-tutorial/bin/samtools",
+    "BAMTOCOV": "${PARCELSCRIPTS}/BamToPosCount.sh",
+    "PARSE_CUT_ADT": "${PARCELSCRIPTS}/parseCutAptLog.pl",
+    "MAP_WAPPER": "${PARCELSCRIPTS}/mapReadsToTranscriptom.sh",
+    "SUM_MAPLOG": "${PARCELSCRIPTS}/sumBowtieMapResult.pl",
+    "QUALCHECKSCRIPT": "${PARCELSCRIPTS}/qualityCheck.R",
+    "TOBEDGRAPH": "${PARCELSCRIPTS}/bedGraphTrack.pl",
+    "CUTADPT": "${PARCELSCRIPTS}/parallel_cutadpt.sh",
+    "RESHAPETABLE": "${PARCELSCRIPTS}/reshapeTable.R",
+    
     "_comments": "script for calling differential sites",
-    "RUNEDGER": "/home/sheny/prog/mygithub/parcelTranscriptome/scripts/edgeR_analysis_on_v1all.R",
-    "REGIONEVALUE": "/home/sheny/prog/mygithub/parcelTranscriptome/scripts/yeast_combined_kadane2output10.R",
-    "FILTERCANDS": "/home/sheny/prog/mygithub/parcelTranscriptome/scripts/yeast_maxFC2_currentFilters.R",
-    "EXTRACTCOVINFO": "/home/sheny/prog/mygithub/parcelTranscriptome/scripts/extractCoverageInfo.R"
+    "MERGECOV": "${PARCELSCRIPTS}/mergeCoverage.R",
+    "RUNEDGER": "${PARCELSCRIPTS}/differential_Sites.R",
+    "REGIONEVALUE": "${PARCELSCRIPTS}/differential_Regions.R",
+    "FILTERCANDS": "${PARCELSCRIPTS}/filtered_Regions.R",
+    "EXTRACTCOVINFO": "${PARCELSCRIPTS}/extractCoverageInfo.R"
 
 }

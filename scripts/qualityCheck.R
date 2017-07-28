@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 library("edgeR");
 library("DESeq2");
 library("reshape2");

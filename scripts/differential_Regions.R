@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 source("/home/sheny/gseq/prog/parcel/scripts/sunScripts/useful_Rscript.R")
 source("~/gseq/prog/parcel/rlibrary.R");
 suppressPackageStartupMessages(library("data.table"));

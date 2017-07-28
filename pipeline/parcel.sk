@@ -101,7 +101,7 @@ rule trimAdaptor:
 	threads: 16
 	shell:
 		"""
-			bash {config[CUTADPT]} {input} {output.trimseq} {params.adp1} {params.adp2} {threads} {output.trimlog}
+			{config[CUTADPT]} {input} {output.trimseq} {params.adp1} {params.adp2} {threads} {output.trimlog}
 			ID={wildcards.id} perl {config[PARSE_CUT_ADT]} {output.trimlog} > {output.trimsum}
 		"""
 
@@ -134,10 +134,10 @@ rule mapToGenome:
 	threads: 12
 	shell:
 		"""
-			MISMATCH={params.mismatch} sh {config[MAP_WAPPER]} {input} {threads} {params.genome} {output.maplog} {output.bamresultTmp}
+			MISMATCH={params.mismatch} {config[MAP_WAPPER]} {input} {threads} {params.genome} {output.maplog} {output.bamresultTmp}
 			{config[SAMTOOLS]} sort -@ {threads} -T {wildcards.id} -m 1G -O BAM {output.bamresultTmp} > {output.bamresult}
 			{config[SAMTOOLS]} index {output.bamresult}
-			ID={wildcards.id} perl {config[SUM_MAPLOG]} {output.maplog} > {output.logsum}
+			ID={wildcards.id} {config[SUM_MAPLOG]} {output.maplog} > {output.logsum}
 		"""
 
 rule bedgraphTrack:
@@ -149,7 +149,7 @@ rule bedgraphTrack:
 		condition = lambda wildcards: CONDITIONS[wildcards.id]
 	shell:
 		"""
-			COVMIN=0 FIVEPOS=yes perl {config[TOBEDGRAPH]} {input.bamresult} {params.condition}_{wildcards.id}_nor {config[BEDGRAPH_SPE]} yes yes no | pigz -c -p 8 > {output}
+			COVMIN=0 FIVEPOS=yes {config[TOBEDGRAPH]} {input.bamresult} {params.condition}_{wildcards.id}_nor {config[BEDGRAPH_SPE]} yes yes no | pigz -c -p 8 > {output}
 		"""
 
 rule collectMapLog:
@@ -172,7 +172,7 @@ rule qualityCheck:
 		outdir = QUALITYDIR , batch = config["COMPAREBATCH"]
 	shell:
 		"""
-			Rscript {config[QUALCHECKSCRIPT]} {input.sampleinfo} {input.trimlog} {input.maplog} {params.batch} {params.outdir}
+			{config[QUALCHECKSCRIPT]} {input.sampleinfo} {input.trimlog} {input.maplog} {params.batch} {params.outdir}
 		"""
 
 rule coverageCount:
@@ -184,7 +184,7 @@ rule coverageCount:
 	params: numhit = config["NUMHIT"]
 	shell:
 		"""
-			NUMHIT={params.numhit} sh {config[BAMTOCOV]} {input.bamresult} {wildcards.id} {config[TRANSCRIPTOMESIZE]} | pigz -p {threads} -c > {output} 
+			NUMHIT={params.numhit} {config[BAMTOCOV]} {input.bamresult} {wildcards.id} {config[TRANSCRIPTOMESIZE]} | pigz -p {threads} -c > {output} 
 		"""
 
 rule collectCovCount:
@@ -208,7 +208,7 @@ rule reshapeCovCount:
 	threads: 1
 	shell:
 		"""
-			Rscript {config[RESHAPETABLE]} -i {input} -o {output} -v V3 -f V1+V2~V4 --header F --filterbySum {config[COVMIN]} --splitBy {params.splitby} --sampleinfo {params.sampleinfo} --downSampleProp {params.downprop}
+			{config[RESHAPETABLE]} -i {input} -o {output} -v V3 -f V1+V2~V4 --header F --filterbySum {config[COVMIN]} --splitBy {params.splitby} --sampleinfo {params.sampleinfo} --downSampleProp {params.downprop}
 		"""
 
 
@@ -223,7 +223,7 @@ rule saveCovToRdata:
 		outdir = RESULTDIR , sampleinfo = config["SAMPLEINFO"], batchid = config["COMPAREBATCH"],ismerge = config["ISMERGE"]
 	shell:
 		"""
-			Rscript {config[MERGETAB]} --args {params.outdir} {input} {params.sampleinfo} {params.batchid} {output} {params.ismerge}
+			{config[MERGECOV]} --args {params.outdir} {input} {params.sampleinfo} {params.batchid} {output} {params.ismerge}
 		"""
 
 rule calldiffsites:
@@ -238,7 +238,7 @@ rule calldiffsites:
 	threads: 1
 	shell:
 		"""
-			Rscript {config[RUNEDGER]} --args {params.outdir} {params.mincov} {params.treatment} {params.control} {params.vsall} {params.sampleinfo} {input.covfile} {params.sffile} {params.batchid} {params.ismerge}
+			{config[RUNEDGER]} --args {params.outdir} {params.mincov} {params.treatment} {params.control} {params.vsall} {params.sampleinfo} {input.covfile} {params.sffile} {params.batchid} {params.ismerge}
 		"""
 
 rule getCandidateRegions:
@@ -252,7 +252,7 @@ rule getCandidateRegions:
 		sffile = rules.calldiffsites.params.sffile
 	shell:
 		"""
-			Rscript {config[REGIONEVALUE]} --args {params.mincov} {params.treatment} {params.outdir} {input.covfile}
+			{config[REGIONEVALUE]} --args {params.mincov} {params.treatment} {params.outdir} {input.covfile}
 		"""
 		
 
@@ -267,7 +267,7 @@ rule filterCandidates:
 		sffile = rules.calldiffsites.params.sffile, sampleinfo = config["SAMPLEINFO"], batchid = config["COMPAREBATCH"], ismerge = config["ISMERGE"]
 	shell:
 		"""
-			Rscript {config[FILTERCANDS]} --args {params.mincov} {params.treatment} {params.outdir} {input.covfile} {params.sffile} {params.genestructure} {params.sampleinfo} {params.batchid} {params.ismerge}
+			{config[FILTERCANDS]} --args {params.mincov} {params.treatment} {params.outdir} {input.covfile} {params.sffile} {params.genestructure} {params.sampleinfo} {params.batchid} {params.ismerge}
 		"""
 rule extractCovInfo:
 	input:
@@ -282,7 +282,7 @@ rule extractCovInfo:
 
 	shell:
 		"""
-			Rscript {config[EXTRACTCOVINFO]} -i {input.filtercands} -s {params.sampleinfo} -b {params.batch} -t {params.treatment} -c {params.control} --covfile {input.covfile} --vsall {params.vsall} --ismerge {params.ismerge} --extWinSize {params.extsize} --genome {params.genome} --outdir {params.outdir}
+			{config[EXTRACTCOVINFO]} -i {input.filtercands} -s {params.sampleinfo} -b {params.batch} -t {params.treatment} -c {params.control} --covfile {input.covfile} --vsall {params.vsall} --ismerge {params.ismerge} --extWinSize {params.extsize} --genome {params.genome} --outdir {params.outdir}
 		"""
 # rule convertToGenome:
 #          input:

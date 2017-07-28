@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 suppressPackageStartupMessages(library("data.table"))
 args = commandArgs(T);
 

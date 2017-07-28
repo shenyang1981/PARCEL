@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 setwd("~/gseq/prog/parcel/GutBacteria/parcelResultSunMiao/batch1/")
 load("fastq2_metpool_output10.Rdata")
 load("combined_metpool_output2_wfilters.Rdata")

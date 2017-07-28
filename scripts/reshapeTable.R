@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 
 suppressPackageStartupMessages(library("argparse"))
 suppressPackageStartupMessages(library("reshape2"));

@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 readtab <- function(filename){
         v1 <- scan(filename,what="",sep="\n")
         v1 <- strsplit(v1, "\t")

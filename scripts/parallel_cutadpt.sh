@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 INPUT=$1
 OUTPUT=$2
 APT1=$3
@@ -35,5 +37,5 @@ fi
 
 #zcat $INPUT | parallel -j $THREADS --pipe -N1000000 --block 100M "/home/sheny/mymacs2/bin/cutadapt -q 10,10 -a AP1=${APT1} -g AP2=${APT2} -n 2 -O 5 -y 'FOUND__{name}__' -m 18 - " $PIGZ > $OUTPUT 2>$OUTLOG
 
-echo "zcat $INPUT | parallel -j $THREADS --pipe -N1000000 --block 100M \"/home/sheny/mymacs2/bin/cutadapt ${QUALTRIM} -a AP1=${APT1} -g AP2=${APT2} ${TRIMPOLYA}  -n 2 -O ${MINOVER} -y 'FOUND__{name}__' -m 18 - \" $PIGZ > $OUTPUT 2>$OUTLOG"
-eval "zcat $INPUT | parallel -j $THREADS --pipe -N1000000 --block 100M \"/home/sheny/mymacs2/bin/cutadapt ${QUALTRIM} -a AP1=${APT1} -g AP2=${APT2} ${TRIMPOLYA}  -n 2 -O ${MINOVER} -y 'FOUND__{name}__' -m 18 - \" $PIGZ > $OUTPUT 2>$OUTLOG"
+echo "zcat $INPUT | parallel -j $THREADS --pipe -N1000000 --block 100M \"cutadapt ${QUALTRIM} -a AP1=${APT1} -g AP2=${APT2} ${TRIMPOLYA}  -n 2 -O ${MINOVER} -y 'FOUND__{name}__' -m 18 - \" $PIGZ > $OUTPUT 2>$OUTLOG"
+eval "zcat $INPUT | parallel -j $THREADS --pipe -N1000000 --block 100M \"cutadapt ${QUALTRIM} -a AP1=${APT1} -g AP2=${APT2} ${TRIMPOLYA}  -n 2 -O ${MINOVER} -y 'FOUND__{name}__' -m 18 - \" $PIGZ > $OUTPUT 2>$OUTLOG"
