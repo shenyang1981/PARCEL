@@ -70,23 +70,35 @@ biocLite("edgeR")
 ### download scripts and configuration files from github
 
 ```
-mkdir parcel
-git 
+git clone https://github.com/shenyang1981/PARCEL.git
 ```
 ### Prepare transcriptome and annotation file
 
 Transcriptome file is in FASTA format and is indexed for Bowtie2.
 
-* mytranscriptome.fas -- transcriptome file
-
-```
-bowtie2-build mytranscriptome.fas mytranscriptome
-```
-* mytranscriptome.size -- Length of each transcript in format: transcriptID{tab}Length
-
+* transcriptome.fas -- transcriptome file
+* transcriptome.size -- Length of each transcript in format: transcriptID{tab}Length
 * cdsinfo.txt -- The start and end position of CDS in transcript: transcriptID{tab}start{tab}end{tab}Length
 
 put all files into database
+```
+cd database/C.albican/
+bowtie2-build transcriptome.fas transcriptome
+```
+### Prepare input files and sample information
+
+* sampleList.txt -- information of each sequenced library, including library ID(**LibID**), condition or treatment(**Condition**), replicates(**Replicates**), sequencing batch(**SeqBatch**), experimental batch(**ExperiementalBatch**), comparison batch(**ComparisonBatch**). Samples belonged to **same comparison batch** would be selected for pairwised comparison. 
+
+The format of sampleList.txt is like:
+
+|Species|LibID|Condition|Replicates|SeqBatch|ExperiementalBatch|ComparisonBatch|
+|-------|:-----:|:---------:|:----------:|:--------:|:------------------:|:---------------:|
+|Candida|V1_1 |control  |rep1      |1       |1                 |batch1         |
+|Candida|V1_2 |control  |rep2      |1       |1                 |batch1         |
+|Candida|V1_met_1|met  |rep1      |1       |1                 |batch1         |
+|Candida|V1_met_2|met  |rep2      |1       |1                 |batch1         |
+
+** Note: LibID should be unique as the corresponding sequence should be named as {LibID}.fastq.gz.
 
 ### generate config file 
 
