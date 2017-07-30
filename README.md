@@ -24,7 +24,7 @@ These instructions will get you a copy of the project up and running on your loc
 
 #### Tools or packages
 - perl >= 5.10
-- python >= 3.15 (for snakemake)
+- python >= 3.5.1 (for snakemake)
 - R >= 3.1.0
 - [GNU parallel](https://www.gnu.org/software/parallel/) >= 20150222
 - [GNU sort](https://www.gnu.org/software/coreutils/coreutils.html) >= (GNU coreutils) 8.23
@@ -67,11 +67,25 @@ biocLite("edgeR")
 ```
 ## Installing
 
-### download scripts and configuration files from github
+### Install snakemake
+
+Install snakemake into a virtual environment
+
+```
+git clone https://bitbucket.org/snakemake/snakemake.git
+cd snakemake
+virtualenv -p python3 snakemake
+source snakemake/bin/activate
+python setup.py install
+```
+### Download scripts and configuration files from github and add directory of scripts into PATH variable 
 
 ```
 git clone https://github.com/shenyang1981/PARCEL.git
+cd PARCEL/; export PARCELSCRIPTS="${PWD}/scripts"; export PATH="${PARCELSCRIPTS}:$PATH"
 ```
+You may consider put 'export PATH=${PARCELSCRIPTS}:$PATH' <replace PARCELSCRIPTS with real path to PARCEL scripts> into your .bashrc file.
+  
 ### Prepare transcriptome and annotation file
 
 Transcriptome file is in FASTA format and is indexed for Bowtie2.
@@ -80,7 +94,8 @@ Transcriptome file is in FASTA format and is indexed for Bowtie2.
 * transcriptome.size -- Length of each transcript in format: transcriptID{tab}Length
 * cdsinfo.txt -- The start and end position of CDS in transcript: transcriptID{tab}start{tab}end{tab}Length
 
-put all files into database
+put all files into a folder, "database/C.albican/" for example. Build bowtie2 index with transcriptome file.
+
 ```
 cd database/C.albican/
 bowtie2-build transcriptome.fas transcriptome
@@ -93,54 +108,54 @@ The format of sampleList.txt is like:
 
 |Species|LibID|Condition|Replicates|SeqBatch|ExperiementalBatch|ComparisonBatch|
 |-------|:-----:|:---------:|:----------:|:--------:|:------------------:|:---------------:|
-|Candida|V1_1 |control  |rep1      |1       |1                 |batch1         |
-|Candida|V1_2 |control  |rep2      |1       |1                 |batch1         |
-|Candida|V1_met_1|met  |rep1      |1       |1                 |batch1         |
-|Candida|V1_met_2|met  |rep2      |1       |1                 |batch1         |
+|Candida|V1_1 |control  |rep1      |seq1       |1                 |batch1         |
+|Candida|V1_2 |control  |rep2      |seq1       |1                 |batch1         |
+|Candida|V1_met_1|met  |rep1      |seq1       |1                 |batch1         |
+|Candida|V1_met_2|met  |rep2      |seq1       |1                 |batch1         |
 
 ** Note: LibID should be unique as the corresponding sequence should be named as {LibID}.fastq.gz.
 
+* input reads files -- Reads are single-end reads. Name of each file should be {LibID}.fastq.gz (LibID should be as same as in sampleList.txt). All of reads files from same sequencing batch should be put into one folder named by {SeqBatch} as indiciated in sampleList.txt. For example, reads files "V1_1.fastq.gz", "V1_2.fastq.gz", "V1_met_1.fastq.gz" and "V1_met_2.fastq.gz" can be put into folder "input/seq1/"
+
+```
+ls input/*
+input/sampleList.txt
+
+input/seq1:
+V1_1.fastq.gz  V1_2.fastq.gz  V1_met_1.fastq.gz  V1_met_2.fastq.gz
+```
+
 ### generate config file 
 
-```
-until finished
-```
-
-End with an example of getting some data out of the system or using it for a little demo
-
-## Running the tests
-
-Explain how to run the automated tests for this system
-
-### Break down into end to end tests
-
-Explain what these tests test and why
+To generate a configuration file for snakemake, several variables need to be defined:
+- PARCELSCRIPTS: path to scripts used in pipeline
+- PARCELDB: path to folder where transcriptome files are
+- PARCELREADSROOT: path to root folder of sequenced reads
+- PARCELSAMPLEINFO: path to sampleList.txt file
+- PARCELRESULTROOT: path to root folder of results
+- PARCELBATCH: batchID indicating which libraries should be selected
+- PARCELCONTROL: which condition should be used as control
+Configuration file can be generated using script **generateConfigureFile.sh**
 
 ```
-Give an example
+PARCELDB=database/C.albican/ PARCELREADSROOT=input/ PARCELSAMPLEINFO=input/sampleList.txt PARCELRESULTROOT=result/ PARCELBATCH=batch1 PARCELCONTROL=control generateConfigureFile.sh pipeline/config/conf.template.json > pipeline/config/conf.batch1.json
+```
+**conf.batch1.json**
+
+## Running Pipeline
+
+The pipeline can be simply run in local mode with configuration file.
+
+```
+source {$pathtosnakemake}/snakemake/bin/activate
+snakemake -s pipeline/parcek.sk --configfile conf.batch1.json -j 32
 ```
 
-### And coding style tests
-
-Explain what these tests test and why
+Or run it by submitting to job scheduler
 
 ```
-Give an example
+runsnake.sh pipeline/parcek.sk conf.batch1.json testjob 24 24
 ```
-
-## Deployment
-
-Add additional notes about how to deploy this on a live system
-
-## Built With
-
-* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
-* [Maven](https://maven.apache.org/) - Dependency Management
-* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
-
-## Contributing
-
-Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
 
 ## Versioning
 
@@ -148,16 +163,18 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 
 ## Authors
 
-* **Billie Thompson** - *Initial work* - [PurpleBooth](https://github.com/PurpleBooth)
+* **Miao Sun** 
+* **Yang Shen**
 
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
+## Contact
+
+Please contact us if you find bugs, have suggestions, need help etc. You can either use our mailing list or send us an email:
+
+* [Yang Shen](mailto:sheny@gis.a-star.edu.sg)
+* [Niranjan Nagarajan](mailto:nagarajann@gis.a-star.edu.sg)
+
+PARCEL is developed in the Genome Institute of Singapore
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
-
-## Acknowledgments
-
-* Hat tip to anyone who's code was used
-* Inspiration
-* etc
