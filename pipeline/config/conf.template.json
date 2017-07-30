@@ -1,0 +1,56 @@
+{
+    "_comments": "$HOME, $PARCELDB and $PARCELSCRIPTS should be defined in advance",
+    "_comments": "parameters for cutting adaptor and mapping",
+    "ADAPTER": {
+        "A": "AGATCGGAAGAGCAC",
+        "B": "CTACAGTCCGACGATC",
+    },
+
+    "_comments": "files used in mapping",
+    "REFTRANSCRIPT": "${PARCELDB}/transcriptome",
+    "REFTRANSCRIPTFASTA": "${PARCELDB}/transcriptome.fas",
+    "TRANSCRIPTOMESIZE": "${PARCELDB}/transcriptome.size",
+    "GENESTRUC": "${PARCELDB}/cdsinfo.txt",
+    
+    "_comments": "sample information and input sequences",   
+    "INPUTDIR": "${PARCELREADSROOT}",
+    "SAMPLEINFO": "${PARCELSAMPLEINFO}",
+    "RESULTROOT": "${PARCELRESULTROOT}",
+    "COMPAREBATCH": "${PARCELBATCH}",
+    "CONTROL": "${PARCELCONTROL}",
+
+    "_comments": "parameters for calling differential sites",
+    "REFTYPE": "Transcriptome",
+    "VSALL": "F",
+    "TOPCOV": "0",
+    "AUTOBATCH": "F",
+    "EXACTTEST": "F",
+    "POSFILE": " ",
+    "EVALUECUT": "1",
+    "WFC": "0.25",
+    "NUMHIT": "5",
+    "ISMERGE": "F",
+    "SPLITBY": "NULL",
+    "DOWNSAMPLEPROP": "1",
+    "COVMIN": "2",
+    "MISMATCH": "1",
+    "MAPMODEL": "global",
+
+    "_comments": "scripts for cutting adaptor and mapping",
+    "BAMTOCOV": "${PARCELSCRIPTS}/BamToPosCount.sh",
+    "PARSE_CUT_ADT": "${PARCELSCRIPTS}/parseCutAptLog.pl",
+    "MAP_WAPPER": "${PARCELSCRIPTS}/mapReadsToTranscriptom.sh",
+    "SUM_MAPLOG": "${PARCELSCRIPTS}/sumBowtieMapResult.pl",
+    "QUALCHECKSCRIPT": "${PARCELSCRIPTS}/qualityCheck.R",
+    "TOBEDGRAPH": "${PARCELSCRIPTS}/bedGraphTrack.pl",
+    "CUTADPT": "${PARCELSCRIPTS}/parallel_cutadpt.sh",
+    "RESHAPETABLE": "${PARCELSCRIPTS}/reshapeTable.R",
+    
+    "_comments": "script for calling differential sites",
+    "MERGECOV": "${PARCELSCRIPTS}/mergeCoverage.R",
+    "RUNEDGER": "${PARCELSCRIPTS}/differential_Sites.R",
+    "REGIONEVALUE": "${PARCELSCRIPTS}/differential_Regions.R",
+    "FILTERCANDS": "${PARCELSCRIPTS}/filtered_Regions.R",
+    "EXTRACTCOVINFO": "${PARCELSCRIPTS}/extractCoverageInfo.R"
+
+}
