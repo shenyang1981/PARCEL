@@ -102,7 +102,7 @@ bowtie2-build transcriptome.fas transcriptome
 ```
 ### Prepare input files and sample information
 
-* sampleList.txt -- information of each sequenced library, including library ID(**LibID**), condition or treatment(**Condition**), replicates(**Replicates**), sequencing batch(**SeqBatch**), experimental batch(**ExperiementalBatch**), comparison batch(**ComparisonBatch**). Samples belonged to **same comparison batch** would be selected for pairwised comparison. 
+* sampleList.txt -- information of each sequenced library, including library ID (**LibID**), condition or treatment (**Condition**), replicates (**Replicates**), sequencing batch (**SeqBatch**), experimental batch (**ExperiementalBatch**), comparison batch(**ComparisonBatch**). Samples belonged to **the same comparison batch** would be selected for pairwised comparison. 
 
 The format of sampleList.txt is like:
 
@@ -113,9 +113,9 @@ The format of sampleList.txt is like:
 |Candida|V1_met_1|met  |rep1      |seq1       |1                 |batch1         |
 |Candida|V1_met_2|met  |rep2      |seq1       |1                 |batch1         |
 
-** Note: LibID should be unique as the corresponding sequence should be named as {LibID}.fastq.gz.
+** Note: LibID should be unique as the corresponding sequence file should be named as {LibID}.fastq.gz.
 
-* input reads files -- Reads are single-end reads. Name of each file should be {LibID}.fastq.gz (LibID should be as same as in sampleList.txt). All of reads files from same sequencing batch should be put into one folder named by {SeqBatch} as indiciated in sampleList.txt. For example, reads files "V1_1.fastq.gz", "V1_2.fastq.gz", "V1_met_1.fastq.gz" and "V1_met_2.fastq.gz" can be put into folder "input/seq1/"
+* input reads files -- Reads are single-end. Name of each file should be {LibID}.fastq.gz (LibID should be the same as in sampleList.txt). All of reads files from the same sequencing batch should be put into one folder named by {SeqBatch} as indiciated in the sampleList.txt. For example, reads files "V1_1.fastq.gz", "V1_2.fastq.gz", "V1_met_1.fastq.gz" and "V1_met_2.fastq.gz" can be put into folder "input/seq1/"
 
 ```
 ls input/*
@@ -131,7 +131,7 @@ To generate a configuration file for snakemake, several variables need to be def
 - PARCELSCRIPTS: path to scripts used in pipeline
 - PARCELDB: path to folder where transcriptome files are
 - PARCELREADSROOT: path to root folder of sequenced reads
-- PARCELSAMPLEINFO: path to sampleList.txt file
+- PARCELSAMPLEINFO: path to the sampleList.txt file
 - PARCELRESULTROOT: path to root folder of results
 - PARCELBATCH: batchID indicating which libraries should be selected
 - PARCELCONTROL: which condition should be used as control
@@ -196,14 +196,14 @@ Now, files should be organized like:
 ```
 ## Running Pipeline
 
-The pipeline can be simply run in local mode with configuration file.
+The pipeline can be simply run in local mode with the configuration file.
 
 ```
 source {$pathtosnakemake}/snakemake/bin/activate
 snakemake -s pipeline/parcel.sk --configfile pipeline/config/conf.batch1.json -j 32
 ```
 
-Or run it by submitting to job scheduler
+Or run it by submitting to the job scheduler
 
 ```
 runsnake.sh pipeline/parcek.sk conf.batch1.json testjob 24 24
