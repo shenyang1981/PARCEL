@@ -163,8 +163,8 @@ We use [SemVer](http://semver.org/) for versioning. For the versions available, 
 
 ## Authors
 
-* **Miao Sun** 
-* **Yang Shen**
+* **Miao Sun** - Original Author and Development
+* **Yang Shen** - Snakemake supported
 
 ## Contact
 
