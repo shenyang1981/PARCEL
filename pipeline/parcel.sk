@@ -102,7 +102,7 @@ rule trimAdaptor:
 	shell:
 		"""
 			{config[CUTADPT]} {input} {output.trimseq} {params.adp1} {params.adp2} {threads} {output.trimlog}
-			ID={wildcards.id} perl {config[PARSE_CUT_ADT]} {output.trimlog} > {output.trimsum}
+			ID={wildcards.id} {config[PARSE_CUT_ADT]} {output.trimlog} > {output.trimsum}
 		"""
 
 
@@ -135,8 +135,8 @@ rule mapToGenome:
 	shell:
 		"""
 			MISMATCH={params.mismatch} {config[MAP_WAPPER]} {input} {threads} {params.genome} {output.maplog} {output.bamresultTmp}
-			{config[SAMTOOLS]} sort -@ {threads} -T {wildcards.id} -m 1G -O BAM {output.bamresultTmp} > {output.bamresult}
-			{config[SAMTOOLS]} index {output.bamresult}
+			samtools sort -@ {threads} -T {wildcards.id} -m 1G -O BAM {output.bamresultTmp} > {output.bamresult}
+			samtools index {output.bamresult}
 			ID={wildcards.id} {config[SUM_MAPLOG]} {output.maplog} > {output.logsum}
 		"""
 
@@ -149,7 +149,7 @@ rule bedgraphTrack:
 		condition = lambda wildcards: CONDITIONS[wildcards.id]
 	shell:
 		"""
-			COVMIN=0 FIVEPOS=yes {config[TOBEDGRAPH]} {input.bamresult} {params.condition}_{wildcards.id}_nor {config[BEDGRAPH_SPE]} yes yes no | pigz -c -p 8 > {output}
+			COVMIN=0 FIVEPOS=yes {config[TOBEDGRAPH]} {input.bamresult} {params.condition}_{wildcards.id}_nor {config[TRANSCRIPTOMESIZE]} yes yes no | pigz -c -p 8 > {output}
 		"""
 
 rule collectMapLog:

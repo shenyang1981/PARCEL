@@ -42,5 +42,3 @@ while(my $line=$fh->getline()){
 	}
 }
 print $id."\t".$totalReadsAll."\t".$writtenReadsAll."\t".$adapterReadsAll."\n";
-
-

@@ -1,16 +1,13 @@
 #!/usr/bin/env Rscript
+
 suppressPackageStartupMessages(library("argparse"));
 suppressPackageStartupMessages(library("data.table"))
-source("~/gseq/prog/rlib/common_lib.R");
-source("~/gseq/prog/parcel/rlibrary.R");
+suppressPackageStartupMessages(library("bedr"))
 
-trop = c("darkorange","dodgerblue","hotpink","limegreen","brown");
-parser <- ArgumentParser(description='Plot the coverage for significant region');
+parser <- ArgumentParser(description='extract the coverage information for significant regions');
 
 # specify our desired options
 # by default ArgumentParser will add an help option
-#parser$add_argument("-v", "--verbose", action="store_true", default=TRUE, help="Print extra output [default]")
-#parser$add_argument("-q", "--quietly", action="store_false", dest="verbose", help="Print little output")
 parser$add_argument("-o", "--outdir", type="character", nargs=1, help="prefix of directory for all output", metavar="coveragePlot",required=T);
 
 parser$add_argument("-i", "--infile", type="character", nargs=1, help="significant regions as Input", metavar="combined_nag100_output2_wfilters.txt",required=T);
@@ -34,20 +31,6 @@ parser$add_argument("--extWinSize", default=60, type="double", metavar=20,help="
 
 parser$add_argument("--genome", default="F", type="character", metavar="transcriptome.fas",help="transcriptome in fasta file[default %(default)s]");
 
-
-infile = "combined_nag500_output2_wfilters.txt";
-outdir = "testdir";
-covfile = "combined_v1all.Rdata";
-samplefile = "~/gseq/prog/parcel/C.albicans/sampleList_Calb.txt";
-usedBatch = "batch42";
-cond2 = "nag500";
-cond1 = "water";
-flagVsall = F;
-ismerge = F;
-ext.win.size = 100;
-replot = F;
-getFasta = T;
-genome = "~/gseq/prog/parcel/C.albicans/sunRef/C_albicans_genes_Snyder_UTRs.fa"
 
 # get parameters from command line -----------------------------------
 

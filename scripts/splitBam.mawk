@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 mawk -F "\t" -v blockSize=$BLOCKSIZE -v splitTag=$SPLITTAG -- 'BEGIN{
 	OFS="\t";
 	blockSize = blockSize>0?blockSize:500000;

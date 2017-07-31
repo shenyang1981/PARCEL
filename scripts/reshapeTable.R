@@ -1,15 +1,11 @@
 #!/usr/bin/env Rscript
 
 suppressPackageStartupMessages(library("argparse"))
-suppressPackageStartupMessages(library("reshape2"));
 suppressPackageStartupMessages(library("data.table"));
-suppressPackageStartupMessages(library("Matrix"));
 parser <- ArgumentParser(description='conversion between "wide" and "long"');
 
 # specify our desired options
 # by default ArgumentParser will add an help option
-#parser$add_argument("-v", "--verbose", action="store_true", default=TRUE, help="Print extra output [default]")
-#parser$add_argument("-q", "--quietly", action="store_false", dest="verbose", help="Print little output")
 
 parser$add_argument("-i", "--infile", type="character", nargs=1, help="txt (zipped) file as Input", metavar="mytable.txt.gz",required=T);
 
@@ -29,8 +25,6 @@ parser$add_argument("--pigzthreads", default=6, type="double", metavar="6",help=
 
 parser$add_argument("--sampleinfo", default="", type="character", metavar="sampleinfo.txt",help="merge columns from same condition[default %(default)s]");
 
-#parser$add_argument("--batch", default="", type="character", default="",metavar="batch1",help="which comparison batch should be used");
-
 parser$add_argument("-v", "--variable", type="character", default="", help="variable name for merged variables", metavar="metavar1:metavar2",required=T);
 
 parser$add_argument("-s", "--splitBy", type="character", default="", help="variable name for splitting datasets", metavar="id");
@@ -48,7 +42,6 @@ args <- parser$parse_args()
 #  write("writing some verbose output to standard error...\n", stderr())
 #}
 
-#setwd("~/gseq/prog//Chengqi/metaAnalysis/")
 
 iname = args$infile;
 output = args$outfile;
@@ -63,7 +56,6 @@ sampleinfo = args$sampleinfo;
 downSampleProp = as.numeric(args$downSampleProp);
 splitBy = args$splitBy;
 pigzthreads = args$pigzthreads;
-#batch = args$batch;
 
 
 pigz_pipe = function(filename, mode="read", cores=4) {
@@ -82,15 +74,7 @@ downSample = function(x=NULL,prop = NULL){
 
 cat(paste(c(iname,output,measureVars,valueVars,myformula,isheader,"\n"),collapse=" ; "));
 
-#iname = "melt_enhanced.csv"
-# iname = "test.txt.gz"
-# output = "testout.txt.gz"
-# isheader=F;
-# valueVars = "V3";
-# myformula = "V1+V2~V4";
-
 if(grepl("gz$",iname)){
-  #iname = paste("zcat ",iname,sep="");
   iname = paste("gzip -cd ",iname,sep="");
 }
 DT = fread(iname,header = as.logical(isheader));
@@ -100,7 +84,6 @@ processDT = function(DT=NULL,valueVars=NULL,measureVars=NULL,myformula=NULL,repl
   myvars = unlist(strsplit(valueVars,split=','));
   if(measureVars!=""  && myformula==""){
     cat("melt DT\n");
-    #measureVars = lapply(unlist(strsplit("dob_child1,dob_child2,dob_child3:gender_child1,gender_child2,gender_child3",split=":")),function(x){unlist(strsplit(x,split=','))});
     measureVars = lapply(unlist(strsplit(measureVars,split=":")),function(x){unlist(strsplit(x,split=','))});
     outDT = melt(DT, measure = measureVars, value.name = myvars);  
   } else if (measureVars==""  && myformula!="") {
@@ -112,18 +95,11 @@ processDT = function(DT=NULL,valueVars=NULL,measureVars=NULL,myformula=NULL,repl
   } else {
     stop(sprintf("--measure and --formula can not be specified simultaneously!\n"));
   }
-  #outDT = as.data.frame(outDT);
   
   # replace NA to 0
   
   if(replaceNA){
     cat("Replace NA\n");
-    # replaceNA = function(DT=NULL) {
-    #   for (i in names(DT))
-    #     DT[is.na(get(i)),(c(i)):=0,with=FALSE]
-    #   return(DT);
-    # }
-    #outDT=replaceNA(outDT);
     outDT = outDT[,lapply(.SD,function(x){x[is.na(x)]=0;return(x)})];
   }
   
@@ -131,7 +107,6 @@ processDT = function(DT=NULL,valueVars=NULL,measureVars=NULL,myformula=NULL,repl
     cat("Downsample DT\n");
     tmpvar = gsub(".*~(.*)","\\1",myformula);
     allcols = as.character(as.matrix(unique(DT[,tmpvar,with=F])));
-    #print(allcols);
     for(tmpcol in allcols){
       outDT[[tmpcol]] = downSample(x = outDT[[tmpcol]],prop=downSampleProp);
     }
@@ -142,7 +117,6 @@ processDT = function(DT=NULL,valueVars=NULL,measureVars=NULL,myformula=NULL,repl
     if(myformula != ""){
       tmpvar = gsub(".*~(.*)","\\1",myformula);
       if(length(tmpvar)==1){
-        #print(tmpvar);
         print(unique(DT[,tmpvar,with=F]));
         outDT=outDT[outDT[,Reduce('+',.SD),.SDcols=unique(DT[[tmpvar]])]>=filterbySum];  
       }  
@@ -200,7 +174,6 @@ if(sampleinfo !="" & file.exists(sampleinfo)){
 
 print("output result\n");
 if(grepl("gz$",output)){
-  #gz1 <- gzfile(output, "w");
   pigzcon = pigz_pipe(output,mode="write",cores=pigzthreads);
   write.table(outDT,pigzcon,col.names=T,row.names=F,sep="\t",quote=F);
   close(pigzcon);

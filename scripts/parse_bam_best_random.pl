@@ -1,4 +1,10 @@
 #!/usr/bin/env perl
+
+# For mutiple hits, the default setting of Bowtie2 reports one random hit from alignments with equivalent of MAPQ score. 
+# However, alignments with equivalent MAPQ scores are not necessarily equal best sometimes. For instance, alignment with one mismatch might have similar MAPQ score to those alignments without mismatch. 
+# Therefore, the better measurement of "equivalent mapping" is "alignment score" (defined as AS tag) instead of MAPQ score.
+# This script is used to randomly select one alignment for read aligned to mulitple locations with equivalent alignment score (recorded under tag AS).
+
 use strict;
 use warnings;
 use IO::File;
@@ -8,9 +14,10 @@ use Math::Random qw(:all);
 
 my $splitTag = $ENV{"SPLITTAG"} || "";
 my $outALL = $ENV{"OUTALL"} || "No";
+
 # input is sam file sorted by sequence name
-# the number of hits is recorded under tag XN
-# the matchlen of read is recorded under tag XL
+# number of hits is recorded under tag XN
+# matchlen of read is recorded under tag XL
 # copy number of collapse reads tag XC
 
 my $mismatchCutoff=$ENV{"MISMATCH"} || 1;
@@ -25,7 +32,6 @@ else {
 }
 
 my $last_id;
-#my $last_score;
 my @reads_pool;
 while(my $line=$fh->getline()){
 	chomp($line);
@@ -38,7 +44,6 @@ while(my $line=$fh->getline()){
 	}
 	my @ary=split(/\t/,$line);
 	if($ary[5]=~ m/I/){
-		#print "here";
 		pos($ary[5])=0;
 	}
 	my @matches = ($ary[5]=~ m/(\d+)M/g);
@@ -101,8 +106,7 @@ if(scalar(@reads_pool)==1){
 	my $outline = $reads_pool[0]->{"read"};
 	$outline =~ s/XN:i:(\d)/XN:i:$numHits/;
 	$outline =~ s/^(.*?)\t/$1--XN:$numHits\t/;
-   #my ($mismatch)=($reads_pool[0]->{"read"}=~ m/NM:i:(\d+)\s/sg);
-    print $outline."\n";
+    	print $outline."\n";
 } else {
    foreach my $record (@reads_pool){
 	my $outline = $record->{"read"};
