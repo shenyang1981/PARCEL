@@ -18,47 +18,20 @@ SEQBATCHS = []
 SEQDIR = []
 SEQFILES = []
 TREATMENTS = []
+CONDITIONS = []
 sampleinfo = open(config["SAMPLEINFO"],"r",newline='')
 for line in sampleinfo:
 	allelems = line.strip().split("\t");
 	if allelems[6] == config["COMPAREBATCH"]:
 		LIBIDS.append(allelems[1])
 		SEQBATCHS.append(allelems[4])
-		SEQDIR.append(allelems[8])
-		SEQFILES.append(allelems[8] + allelems[7])
+		CONDITIONS.append(allelems[2])
+		#SEQDIR.append(allelems[8])
+		#SEQFILES.append(allelems[8] + allelems[7])
 		if allelems[2] != config["CONTROL"]:
 			TREATMENTS.append(allelems[2])
 
 TREATMENTS = list(set(TREATMENTS))
-
-#print(LIBIDS)
-#print(SEQBATCHS)
-
-# get condition and id pair
-CONDITIONS = {}
-sampleinfo = open(config["SAMPLEINFO"],"r",newline='')
-for line in sampleinfo:
-	CONDITIONS[line.split("\t")[1]] = line.split("\t")[2]
-
-
-###################################################################################
-# for calling differential sites
-###################################################################################
-
-OUTPUTDIRCOV = {
- "AUTOBATCH": {
-    "T": "Batch",
-    "F": "NoBatch"
- },
- "VSALL": {
-    "T": "vsAll",
-    "F": "onlyControl"
- },
-}
-# the merged coverage files
-#MERGEDCOVDIR = RESULTDIR + "/"
-
-#RESULTDIR = RESULTDIR + "/"
 
 ##################################################################################
 #     Directories
@@ -71,21 +44,15 @@ MAPRESULTDIR = config["RESULTROOT"] + "/" + "mappedResult/" + config["REFTYPE"] 
 COVERAGEDIR = config["RESULTROOT"] + "/" + "coverageInfo/" + config["REFTYPE"] + "/"
 BEDGRAPHDIR = config["RESULTROOT"] + "/" + "bedgraphs/" + config["REFTYPE"] + "/" + mybatch + "/"
 QUALITYDIR = config["RESULTROOT"] + "/" + "qualityCheck/" + mybatch + "/"
-#DIFFREGIONS = RESULTDIR + mybatch + "diffRegions/"
 
-
-def get_bedgraph_files(wc):
-	return [ BEDGRAPHDIR + "/" + CONDITIONS[LIBIDS[k]] + '_{}'.format(LIBIDS[k]) + '_{}_nor.bedgraph.gz'.format(SEQBATCHS[k]) for k in range(len(LIBIDS))]
 
 rule final:
 	input: 
 		QUALITYDIR + "/" + "processingSummary.xls",
 		expand(RESULTDIR + "/" + "combined_{treatment}_output2_wfilters.txt",treatment = TREATMENTS),
 		expand(RESULTDIR + "/" + "combined_{treatment}_covinfo.xls",treatment = TREATMENTS),
-		#expand(RESULTDIR + "combined_{treatment}_output2_wfilters.bed",treatment = TREATMENTS),
-		#expand(RESULTDIR + "{treatment}_covplot/sigRegion.xls",treatment = TREATMENTS),
-		#expand(RESULTDIR + "{treatment}_covplot/sigRegion.highlightSeq.xls",treatment = TREATMENTS),
-		get_bedgraph_files
+		expand(TRIMSEQDIR + "{seqbatch}/" + 'read.trim.{id}.log.sum', zip, id=LIBIDS, seqbatch=SEQBATCHS),
+		expand(BEDGRAPHDIR + "/" + "{condition}" + "__{id}" + "__{seqbatch}__nor.bedgraph.gz", zip, condition = CONDITIONS, id=LIBIDS, seqbatch=SEQBATCHS)
 
 rule trimAdaptor:
 	input: 
@@ -144,12 +111,10 @@ rule bedgraphTrack:
 	input:
 		bamresult = rules.mapToGenome.output.bamresult
 	output:
-		BEDGRAPHDIR + "/" + "{condition}_{id}_{seqbatch}_nor.bedgraph.gz"
-	params:
-		condition = lambda wildcards: CONDITIONS[wildcards.id]
+		BEDGRAPHDIR + "/" + "{condition}__{id}__{seqbatch}__nor.bedgraph.gz"
 	shell:
 		"""
-			COVMIN=0 FIVEPOS=yes {config[TOBEDGRAPH]} {input.bamresult} {params.condition}_{wildcards.id}_nor {config[TRANSCRIPTOMESIZE]} yes yes no | pigz -c -p 8 > {output}
+			COVMIN=0 FIVEPOS=yes {config[TOBEDGRAPH]} {input.bamresult} {wildcards.condition}__{wildcards.id}__nor {config[TRANSCRIPTOMESIZE]} yes yes no | pigz -c -p 8 > {output}
 		"""
 
 rule collectMapLog:
@@ -284,38 +249,3 @@ rule extractCovInfo:
 		"""
 			{config[EXTRACTCOVINFO]} -i {input.filtercands} -s {params.sampleinfo} -b {params.batch} -t {params.treatment} -c {params.control} --covfile {input.covfile} --vsall {params.vsall} --ismerge {params.ismerge} --extWinSize {params.extsize} --genome {params.genome} --outdir {params.outdir}
 		"""
-# rule convertToGenome:
-#          input:
-#                  rules.filterCandidates.output.filtercands
-#          output:
-#                  candbed = RESULTDIR + "/" + "combined_{treatment}_output2_wfilters.bed",
-#                  candseq = temp(RESULTDIR + "/" + "combined_{treatment}_output2_wfilters.fa"),
-#          params:
-#                  refTranscript = config["REFTRANSCRIPTFASTA"], refGenome = config["GENOMEFASTA"]
-#          shell:
-#                  """
-#                          Rscript {config[CONVERTTOBED]} -i {input} -s {output.candseq} -o {output.candbed} -r {params.refTranscript} -g {params.refGenome}
-#                  """
-#
-# rule coveragePlot:
-#         input:
-#                 filtercands = rules.convertToGenome.output.candbed,
-#                 siterawcov = config["RAWCOV"]
-#
-#         output:
-#                 sigregion = RESULTDIR + "/{treatment}_covplot/sigRegion.xls",
-#                 sigregionHighlight = RESULTDIR + "/{treatment}_covplot/sigRegion.highlightSeq.xls",
-#                 sequences = RESULTDIR + "/{treatment}_covplot/sequences.fas",
-#                 ribocov = RESULTDIR + "/{treatment}_covplot/covinfo.xls"
-#
-#         params:
-#                 sampleinfo = config["SAMPLEINFO"], nrexonbed = config["GENEEXONBED"], treatment = lambda wildcards: wildcards.treatment, control = config["CONTROL"],
-#                 topcov = config["TOPCOV"], batch = config["COMPAREBATCH"], autobatch = config["AUTOBATCH"], genome = config["GENOMEFASTA"], cdsbed = config["CDSBED"],
-#                 outdir = rules.filterCandidates.params.outdir + "{treatment}_covplot/", ismerge = config["ISMERGE"]
-#         threads: 16
-#         shell:
-#                 """
-#                         Rscript {config[COVPLOT]} -o {params.outdir} -i {input.filtercands} -s {params.sampleinfo} -b {params.batch} -t {params.treatment} -c {params.control} --covfile {input.siterawcov} --genome {params.genome} --getFasta T --CDSBed {params.cdsbed} --genomeSize {config[GENOMESIZE]} --ismerge {params.ismerge}
-#                         perl {config[HIGHLIGHTSEQ]} {output.sigregion} {output.sigregionHighlight}
-#                 """
-#

@@ -3,5 +3,3 @@ Candida	V1_1	control	rep1	seq1	6	batch1
 Candida	V1_2	control	rep2	seq1	6	batch1
 Candida	V1_met_1	met	rep1	seq1	6	batch1
 Candida	V1_met_2	met	rep2	seq1	6	batch1
-Candida	V1_TPP1_1	tpp	rep1	seq1	6	batch1
-Candida	V1_TPP1_2	tpp	rep2	seq1	6	batch1
