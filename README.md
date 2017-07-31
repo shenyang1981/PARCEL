@@ -142,13 +142,65 @@ PARCELDB=database/C.albican/ PARCELREADSROOT=input/ PARCELSAMPLEINFO=input/sampl
 ```
 **conf.batch1.json**
 
+Now, files should be organized like:
+
+```
+.
+├── database
+│   └── C.albican
+│       ├── cdsinfo.txt
+│       ├── transcriptome.1.bt2
+│       ├── transcriptome.2.bt2
+│       ├── transcriptome.3.bt2
+│       ├── transcriptome.4.bt2
+│       ├── transcriptome.fas
+│       ├── transcriptome.rev.1.bt2
+│       ├── transcriptome.rev.2.bt2
+│       └── transcriptome.size
+├── input
+│   ├── sampleList.txt
+│   └── seq1
+│       ├── V1_1.fastq.gz
+│       ├── V1_2.fastq.gz
+│       ├── V1_met_1.fastq.gz
+│       └── V1_met_2.fastq.gz
+├── LICENSE.md
+├── pipeline
+│   ├── config
+│   │   ├── conf.batch1.json
+│   │   └── conf.template.json
+│   └── parcel.sk
+├── README.md
+└── scripts
+    ├── BamToPosCount.sh
+    ├── bedGraphTrack.pl
+    ├── definedVariable.sh
+    ├── differential_Regions.R
+    ├── differential_Sites.R
+    ├── extractCoverageInfo.R
+    ├── filtered_Regions.R
+    ├── filterInspection.R
+    ├── generateConfigureFile.sh
+    ├── mapReadsToTranscriptom.sh
+    ├── mergeCoverage.R
+    ├── parallel_cutadpt.sh
+    ├── parse_bam_best_parallel_random.sh
+    ├── parse_bam_best_random.pl
+    ├── parseCutAptLog.pl
+    ├── qualityCheck.R
+    ├── reshapeTable.R
+    ├── runsnake.sh
+    ├── splitBam.mawk
+    └── sumBowtieMapResult.pl
+
+```
 ## Running Pipeline
 
 The pipeline can be simply run in local mode with configuration file.
 
 ```
 source {$pathtosnakemake}/snakemake/bin/activate
-snakemake -s pipeline/parcek.sk --configfile conf.batch1.json -j 32
+snakemake -s pipeline/parcel.sk --configfile pipeline/config/conf.batch1.json -j 32
 ```
 
 Or run it by submitting to job scheduler
