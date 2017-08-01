@@ -135,6 +135,7 @@ To generate a configuration file for snakemake, several variables need to be def
 - PARCELRESULTROOT: path to root folder of results
 - PARCELBATCH: batchID indicating which libraries should be selected
 - PARCELCONTROL: which condition should be used as control
+
 Configuration file can be generated using script **generateConfigureFile.sh**
 
 ```
@@ -196,6 +197,7 @@ Now, files should be organized like:
 ```
 ## Running Pipeline
 
+### Local Mode
 The pipeline can be simply run in local mode with the configuration file.
 
 ```
@@ -203,10 +205,90 @@ source {$pathtosnakemake}/snakemake/bin/activate
 snakemake -s pipeline/parcel.sk --configfile pipeline/config/conf.batch1.json -j 32
 ```
 
+### Submit snakemake jobs to Cluster
 Or run it by submitting to the job scheduler
 
 ```
 runsnake.sh pipeline/parcek.sk conf.batch1.json testjob 24 24
+```
+
+### Results
+
+After running pipeline, results would be stored in "result/" folder.
+
+- **combined_met_output2_wfilters.txt** -- Candidate regions.
+- **combined_met_covinfo.xls** -- Coverage information.
+
+```
+.
+├── bedgraphs
+│   └── Transcriptome
+│       └── batch1
+│           ├── control__V1_1__seq1__nor.bedgraph.gz
+│           ├── control__V1_2__seq1__nor.bedgraph.gz
+│           ├── met__V1_met_1__seq1__nor.bedgraph.gz
+│           └── met__V1_met_2__seq1__nor.bedgraph.gz
+├── coverageInfo
+│   └── Transcriptome
+│       └── seq1
+│           ├── V1_1.cov.txt.gz
+│           ├── V1_2.cov.txt.gz
+│           ├── V1_met_1.cov.txt.gz
+│           └── V1_met_2.cov.txt.gz
+├── mappedResult
+│   └── Transcriptome
+│       ├── batch1
+│       │   └── mapSummary.txt
+│       └── seq1
+│           ├── V1_1.trim.fastq.genome_mapping_best.sort.bam
+│           ├── V1_1.trim.fastq.genome_mapping_best.sort.bam.bai
+│           ├── V1_1.trim.fastq.genome_mapping.log
+│           ├── V1_1.trim.fastq.genome_mapping.summary
+│           ├── V1_2.trim.fastq.genome_mapping_best.sort.bam
+│           ├── V1_2.trim.fastq.genome_mapping_best.sort.bam.bai
+│           ├── V1_2.trim.fastq.genome_mapping.log
+│           ├── V1_2.trim.fastq.genome_mapping.summary
+│           ├── V1_met_1.trim.fastq.genome_mapping_best.sort.bam
+│           ├── V1_met_1.trim.fastq.genome_mapping_best.sort.bam.bai
+│           ├── V1_met_1.trim.fastq.genome_mapping.log
+│           ├── V1_met_1.trim.fastq.genome_mapping.summary
+│           ├── V1_met_2.trim.fastq.genome_mapping_best.sort.bam
+│           ├── V1_met_2.trim.fastq.genome_mapping_best.sort.bam.bai
+│           ├── V1_met_2.trim.fastq.genome_mapping.log
+│           └── V1_met_2.trim.fastq.genome_mapping.summary
+├── PARCEL
+│   └── Transcriptome
+│       └── batch1
+│           ├── allcov.txt.gz
+│           ├── allcov.wide.min2.txt.gz
+│           ├── combined_met_covinfo.xls
+│           ├── combined_met_output2_wfilters.Rdata
+│           ├── combined_met_output2_wfilters.txt
+│           ├── combined_v1all.Rdata
+│           ├── covinfo_met.Rdata
+│           ├── edgeR_met_sf.Rdata
+│           ├── etTable_met.Rdata
+│           └── fastq2_met_output10.Rdata
+├── qualityCheck
+│   └── batch1
+│       ├── all.Rdata
+│       └── processingSummary.xls
+└── trimmedFastq
+    ├── batch1
+    │   └── trimSummary.txt
+    └── seq1
+        ├── read.trim.V1_1.log
+        ├── read.trim.V1_1.log.sum
+        ├── read.trim.V1_2.log
+        ├── read.trim.V1_2.log.sum
+        ├── read.trim.V1_met_1.log
+        ├── read.trim.V1_met_1.log.sum
+        ├── read.trim.V1_met_2.log
+        ├── read.trim.V1_met_2.log.sum
+        ├── V1_1.trim.fastq.gz
+        ├── V1_2.trim.fastq.gz
+        ├── V1_met_1.trim.fastq.gz
+        └── V1_met_2.trim.fastq.gz
 ```
 
 ## Versioning
