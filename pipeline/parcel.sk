@@ -12,6 +12,8 @@ shell.prefix("source ~/.bashrc; set -euo pipefail;")
 
 # Globals ---------------------------------------------------------------------
 
+vsAll = {"T": "vsAll","F": "paired_vs_" + config["CONTROL"]}
+
 # get the seqbatch : libid pairs for given comparebatch id
 LIBIDS = []
 SEQBATCHS = []
@@ -30,7 +32,6 @@ for line in sampleinfo:
 		#SEQFILES.append(allelems[8] + allelems[7])
 		if allelems[2] != config["CONTROL"]:
 			TREATMENTS.append(allelems[2])
-
 TREATMENTS = list(set(TREATMENTS))
 
 ##################################################################################
@@ -45,14 +46,13 @@ COVERAGEDIR = config["RESULTROOT"] + "/" + "coverageInfo/" + config["REFTYPE"] +
 BEDGRAPHDIR = config["RESULTROOT"] + "/" + "bedgraphs/" + config["REFTYPE"] + "/" + mybatch + "/"
 QUALITYDIR = config["RESULTROOT"] + "/" + "qualityCheck/" + mybatch + "/"
 
-
 rule final:
 	input: 
-		QUALITYDIR + "/" + "processingSummary.xls",
-		expand(RESULTDIR + "/" + "combined_{treatment}_output2_wfilters.txt",treatment = TREATMENTS),
-		expand(RESULTDIR + "/" + "combined_{treatment}_covinfo.xls",treatment = TREATMENTS),
+		QUALITYDIR + "processingSummary.xls",
+		expand(RESULTDIR + vsAll[config['VSALL']] + "/" + "combined_{treatment}_output2_wfilters.txt",treatment = TREATMENTS),
+		expand(RESULTDIR + vsAll[config['VSALL']] + "/" + "combined_{treatment}_covinfo.xls",treatment = TREATMENTS),
 		expand(TRIMSEQDIR + "{seqbatch}/" + 'read.trim.{id}.log.sum', zip, id=LIBIDS, seqbatch=SEQBATCHS),
-		expand(BEDGRAPHDIR + "/" + "{condition}" + "__{id}" + "__{seqbatch}__nor.bedgraph.gz", zip, condition = CONDITIONS, id=LIBIDS, seqbatch=SEQBATCHS)
+		expand(BEDGRAPHDIR + "{condition}" + "__{id}" + "__{seqbatch}__nor.bedgraph.gz", zip, condition = CONDITIONS, id=LIBIDS, seqbatch=SEQBATCHS)
 
 rule trimAdaptor:
 	input: 
@@ -64,7 +64,7 @@ rule trimAdaptor:
 	params:
 		adp1=config["ADAPTER"]["A"], adp2=config["ADAPTER"]["B"]
 
-	log: TRIMSEQDIR + "{seqbatch}/" + "/read.trim.{id}.err"
+	log: TRIMSEQDIR + "{seqbatch}/" + "read.trim.{id}.err"
 	threads: 16
 	shell:
 		"""
@@ -83,39 +83,55 @@ rule collectAdpTrimLog:
 			cat {input} > {output}
 		"""
 
-rule mapToGenome:
-	input:
-		rules.trimAdaptor.output.trimseq
+rule mapToGenomeSoftClip:
+	input: rules.trimAdaptor.output.trimseq
 	output:
 		bamresult = MAPRESULTDIR + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping_best.sort.bam",
-		bamresultTmp = temp(MAPRESULTDIR + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping_best.bam"),
-		bamindex = MAPRESULTDIR + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping_best.sort.bam.bai",
 		maplog = MAPRESULTDIR + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping.log",
 		logsum = MAPRESULTDIR + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping.summary"
-		
 	params:
-		seqbatch = lambda wildcards: wildcards.seqbatch,
-		mismatch = config["MISMATCH"],
-		mapmodel = config["MAPMODEL"],
-		genome = config["REFTRANSCRIPT"]
-	threads: 12
+		seqbatch = lambda wildcards: wildcards.seqbatch, mismatch = config["MISMATCH"], mapmodel = config["MAPMODEL"], genome = config["REFTRANSCRIPT"]
+	threads: 30
 	shell:
 		"""
-			MISMATCH={params.mismatch} {config[MAP_WAPPER]} {input} {threads} {params.genome} {output.maplog} {output.bamresultTmp}
-			samtools sort -@ {threads} -T {wildcards.id} -m 1G -O BAM {output.bamresultTmp} > {output.bamresult}
-			samtools index {output.bamresult}
+			MISMATCH={params.mismatch} {config[MAP_WAPPER]} {input} {threads} {params.genome} {output.maplog} {output.bamresult} {wildcards.id}
 			ID={wildcards.id} {config[SUM_MAPLOG]} {output.maplog} > {output.logsum}
+		"""
+
+rule mapToGenome:
+	input:
+		rules.mapToGenomeSoftClip.output.bamresult
+	output:
+		bamresult = MAPRESULTDIR + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping_best.no5clip.sort.bam",
+		cliplog = MAPRESULTDIR + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping.clip.log",
+	threads: 8 
+	shell:
+			#ID={wildcards.id} {config[FILTER_CLIP]} {input} 2> {output.cliplog} | samtools view -@ {threads} -S -b - > {output.bamresult}
+		"""
+			ID={wildcards.id} ~/prog/mygithub/parcelTranscriptome/scripts/clipstats.sh {input} 2> {output.cliplog} | samtools view -@ {threads} -S -b - > {output.bamresult}
+		"""
+
+rule indexBam:
+	input:
+		rules.mapToGenome.output.bamresult	
+	output:
+		MAPRESULTDIR + "{seqbatch}/" + "{id}.trim.fastq.genome_mapping_best.no5clip.sort.bam.bai"
+	shell:
+		"""
+			samtools index {input}
 		"""
 
 rule bedgraphTrack:
 	input:
-		bamresult = rules.mapToGenome.output.bamresult
+		bamresult = rules.mapToGenome.output.bamresult,
+		bamIndex = rules.indexBam.output
 	output:
-		BEDGRAPHDIR + "/" + "{condition}__{id}__{seqbatch}__nor.bedgraph.gz"
+		BEDGRAPHDIR + "{condition}__{id}__{seqbatch}__nor.bedgraph.gz"
 	shell:
 		"""
 			COVMIN=0 FIVEPOS=yes {config[TOBEDGRAPH]} {input.bamresult} {wildcards.condition}__{wildcards.id}__nor {config[TRANSCRIPTOMESIZE]} yes yes no | pigz -c -p 8 > {output}
 		"""
+
 
 rule collectMapLog:
 	input:
@@ -126,23 +142,36 @@ rule collectMapLog:
 		"""
 			cat {input} > {output}
 		"""
+
+rule collectClipFilterLog:
+	input:
+		expand(MAPRESULTDIR + "{seqbatch}/" + '{id}.trim.fastq.genome_mapping.clip.log', zip, id=LIBIDS, seqbatch=SEQBATCHS)
+	output:
+		MAPRESULTDIR + config["COMPAREBATCH"] + "/" + "clipSummary.txt"
+	shell:
+		"""
+			cat {input} > {output}
+		"""
+
 rule qualityCheck:
 	input:
 		sampleinfo = config["SAMPLEINFO"],
 		trimlog = rules.collectAdpTrimLog.output,
-		maplog = rules.collectMapLog.output
+		maplog = rules.collectMapLog.output,
+		cliplog = rules.collectClipFilterLog.output,
 	output:
-		proSum = QUALITYDIR  + "/" + "processingSummary.xls"
+		proSum = QUALITYDIR  + "processingSummary.xls"
 	params:
 		outdir = QUALITYDIR , batch = config["COMPAREBATCH"]
 	shell:
 		"""
-			{config[QUALCHECKSCRIPT]} {input.sampleinfo} {input.trimlog} {input.maplog} {params.batch} {params.outdir}
+			{config[QUALCHECKSCRIPT]} {input.sampleinfo} {input.trimlog} {input.maplog} {input.cliplog} {params.batch} {params.outdir}
 		"""
 
 rule coverageCount:
 	input:
-		bamresult = rules.mapToGenome.output.bamresult
+		bamresult = rules.mapToGenome.output.bamresult,
+		bamIndex = rules.indexBam.output
 	output:
 		COVERAGEDIR + "{seqbatch}/" + "{id}.cov.txt.gz"
 	threads: 4
@@ -182,24 +211,24 @@ rule saveCovToRdata:
 	input:
 		rules.reshapeCovCount.output
 	output:
-		RESULTDIR + "/" + "combined_v1all.Rdata"
+		RESULTDIR + "combined_v1all.Rdata"
 	threads: 8
 	params: 
-		outdir = RESULTDIR , sampleinfo = config["SAMPLEINFO"], batchid = config["COMPAREBATCH"],ismerge = config["ISMERGE"]
+		outdir = RESULTDIR , sampleinfo = config["SAMPLEINFO"], batchid = config["COMPAREBATCH"],ismerge = config["ISMERGE"], reftype = config["REFTYPE"]
 	shell:
 		"""
-			{config[MERGECOV]} --args {params.outdir} {input} {params.sampleinfo} {params.batchid} {output} {params.ismerge}
+			{config[MERGECOV]} --args {params.outdir} {input} {params.sampleinfo} {params.batchid} {output} {params.ismerge} {params.reftype}
 		"""
 
 rule calldiffsites:
 	input:
 		covfile = rules.saveCovToRdata.output 
 	output: 
-		pvaluefile = RESULTDIR + "/" + "etTable_{treatment}.Rdata",
-		covfile = RESULTDIR + "/" + "covinfo_{treatment}.Rdata"
+		pvaluefile = RESULTDIR + vsAll[config["VSALL"]] + "/" + "etTable_{treatment}.Rdata",
+		covfile = RESULTDIR + vsAll[config["VSALL"]] + "/" + "covinfo_{treatment}.Rdata"
 	params:
-		outdir = rules.saveCovToRdata.params.outdir, mincov = config["COVMIN"], treatment = lambda wildcards: wildcards.treatment, sampleinfo = config["SAMPLEINFO"], ismerge = config["ISMERGE"],
-		sffile = RESULTDIR + "/" + "edgeR_{treatment}_sf.Rdata", batchid = config["COMPAREBATCH"], control = config["CONTROL"], vsall = config["VSALL"]
+		outdir = rules.saveCovToRdata.params.outdir + vsAll[config["VSALL"]] + "/", mincov = config["COVMIN"], treatment = lambda wildcards: wildcards.treatment, sampleinfo = config["SAMPLEINFO"], ismerge = config["ISMERGE"],
+		sffile = RESULTDIR + vsAll[config["VSALL"]] + "/" + "edgeR_{treatment}_sf.Rdata", batchid = config["COMPAREBATCH"], control = config["CONTROL"], vsall = config["VSALL"]
 	threads: 1
 	shell:
 		"""
@@ -211,9 +240,9 @@ rule getCandidateRegions:
 		pvaluefile = rules.calldiffsites.output.pvaluefile,
 		covfile = rules.calldiffsites.output.covfile
 	output:
-		RESULTDIR + "/" + "fastq2_{treatment}_output10.Rdata"
+		RESULTDIR + vsAll[config["VSALL"]] + "/" +  "fastq2_{treatment}_output10.Rdata"
 	params:
-		mincov = config["COVMIN"], treatment = lambda wildcards: wildcards.treatment, outdir = rules.saveCovToRdata.params.outdir,
+		mincov = config["COVMIN"], treatment = lambda wildcards: wildcards.treatment, outdir = rules.calldiffsites.params.outdir,
 		sffile = rules.calldiffsites.params.sffile
 	shell:
 		"""
@@ -226,23 +255,23 @@ rule filterCandidates:
 		diffsitefile = rules.getCandidateRegions.output,
 		covfile = rules.calldiffsites.output.covfile
 	output:
-		filtercands = RESULTDIR + "/" + "combined_{treatment}_output2_wfilters.txt",
+		filtercands = RESULTDIR + vsAll[config["VSALL"]] + "/" + "combined_{treatment}_output2_wfilters.txt",
 	params:
-		mincov = config["COVMIN"], treatment = lambda wildcards: wildcards.treatment, outdir = rules.saveCovToRdata.params.outdir, genestructure = config["GENESTRUC"],
-		sffile = rules.calldiffsites.params.sffile, sampleinfo = config["SAMPLEINFO"], batchid = config["COMPAREBATCH"], ismerge = config["ISMERGE"]
+		mincov = config["COVMIN"], treatment = lambda wildcards: wildcards.treatment, outdir = rules.calldiffsites.params.outdir, genestructure = config["GENESTRUC"],
+		sffile = rules.calldiffsites.params.sffile, sampleinfo = config["SAMPLEINFO"], batchid = config["COMPAREBATCH"], ismerge = config["ISMERGE"], adjPbyChr = config["ADJPBYCHR"]
 	shell:
 		"""
-			{config[FILTERCANDS]} --args {params.mincov} {params.treatment} {params.outdir} {input.covfile} {params.sffile} {params.genestructure} {params.sampleinfo} {params.batchid} {params.ismerge}
+			{config[FILTERCANDS]} --args {params.mincov} {params.treatment} {params.outdir} {input.covfile} {params.sffile} {params.genestructure} {params.sampleinfo} {params.batchid} {params.ismerge} {params.adjPbyChr}
 		"""
 rule extractCovInfo:
 	input:
 		filtercands = rules.filterCandidates.output.filtercands,
 		covfile = rules.saveCovToRdata.output
 	output:
-		covoutput = RESULTDIR + "/" + "combined_{treatment}_covinfo.xls"
+		covoutput = RESULTDIR + vsAll[config["VSALL"]] + "/" + "combined_{treatment}_covinfo.xls"
 	params:
 		sampleinfo = config["SAMPLEINFO"], treatment = lambda wildcards: wildcards.treatment, control = config["CONTROL"],batch = config["COMPAREBATCH"], 
-		genome = config["REFTRANSCRIPTFASTA"], outdir = rules.filterCandidates.params.outdir, ismerge = config["ISMERGE"], vsall = config["VSALL"],extsize = 100
+		genome = config["REFTRANSCRIPTFASTA"], outdir = rules.filterCandidates.params.outdir, ismerge = config["ISMERGE"], vsall = config["VSALL"],extsize = 300
 
 
 	shell:

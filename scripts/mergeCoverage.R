@@ -15,6 +15,7 @@ samplefile = args[3]; #sampleList_Fly.txt
 usedBatch = args[4]; #batch1
 countinfo = args[5]; # combined_v1all.Rdata
 ismerge = ifelse(!is.null(args[6]) & args[6]=="T",T,F);
+isGenome = ifelse(!is.null(args[7]) & grepl("genome",tolower(args[7])),T,F);
 
 sampleInfo = read.table(samplefile,header=T,sep="\t",stringsAsFactors = F);
 sampleInfo = sampleInfo[sampleInfo[,"ComparisonBatch"] == usedBatch,];
@@ -35,7 +36,10 @@ v1all = v1all[,c("V1","V2",sampleInfo[,"LibID"]),with=F];
 setnames(v1all,1:2,c("chr","pos"));
 
 # for transcriptome, we exclude reads mapped to negative strand of transcript
-v1all = v1all[substr(chr,nchar(chr)-3,nchar(chr))!=":Neg",];
+if(!isGenome){
+  v1all = v1all[substr(chr,nchar(chr)-3,nchar(chr))!=":Neg",];  
+}
+
 # exclude position zero
 v1all = v1all[pos!=0,];
 #save(v1all,file=paste(outdir,countinfo,sep=""));

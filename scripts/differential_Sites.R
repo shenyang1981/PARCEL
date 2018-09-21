@@ -2,6 +2,19 @@
 
 suppressPackageStartupMessages(require(edgeR));
 suppressPackageStartupMessages(library("data.table"))
+
+writeBedGraph = function(outDT,bgheader,output,pigzthreads=4){
+  pigzcon = pigz_pipe(output,mode="write",cores=pigzthreads);
+  writeLines(bgheader,pigzcon);
+  write.table(outDT,pigzcon,col.names=F,row.names=F,sep="\t",quote=F);
+  close(pigzcon);
+}
+
+pigz_pipe = function(filename, mode="read", cores=4) {
+  con <- pipe(paste0("pigz -p ", cores, " > ", filename), "wb")
+  con
+}
+
 args = commandArgs(T);
 args = args[-1];
 
@@ -47,13 +60,32 @@ y <- DGEList(counts = countable,group=groupLevel)
 y <- calcNormFactors(y)
 if(!file.exists(sffile)){
   sf <- y$samples$norm.factors;
+  libsf = y$samples$lib.size;
   names(sf) = rownames(y$samples);
-	save(sf,file=sffile)
+  names(libsf) = rownames(y$samples);
+	save(sf,libsf,file=sffile)
 }
 y <- estimateCommonDisp(y, verbose = TRUE)
 y <- estimateTagwiseDisp(y)
 et <- exactTest(y, dispersion = "auto")
 etTable <- data.table(v1all[rowSums(v1all[,-c("chr","pos"),with=F])>=cutoff,c("chr","pos"),with=F],et$table);
+
+# save pvalue and fold results as bedgraph files
+bgDT = etTable[,c("chr","pos","PValue","logFC"),with=F];
+bgDT[,strand:=gsub("(.*):(.*)","\\2",chr)];
+bgDT[,c("chr","start","end","PValue") := .(
+  gsub("(.*):(.*)","\\1",chr),
+  pos-1,
+  pos,
+  ifelse(strand=="Neg",log10(PValue+1e-200),-1*log10(PValue+1e-200)))];
+
+bgheaderPvalue = paste("track type=bedGraph name=",'"',sampleid," Pvalue",'"'," visibility=2 color=255,30,30",sep="");
+bgheaderFold = paste("track type=bedGraph name=",'"',sampleid," log2Fold",'"'," visibility=2 color=255,30,30",sep="");
+options(scipen = 999);
+writeBedGraph(bgDT[,c("chr","start","end","PValue"),with=F],bgheaderPvalue,file.path(outdir,paste(sampleid,".Pvalue.bedgraph.gz",sep="")));
+writeBedGraph(bgDT[,c("chr","start","end","logFC"),with=F],bgheaderFold,file.path(outdir,paste(sampleid,".Fold.bedgraph.gz",sep="")));
+options(scipen=0);
+# save other results
 save(etTable,file=paste(outdir,"etTable_",sampleid,".Rdata",sep=""))
 save(v1all,file=paste(outdir,"covinfo_",sampleid,".Rdata",sep=""))
 

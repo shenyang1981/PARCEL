@@ -35,6 +35,7 @@
     "COVMIN": "2",
     "MISMATCH": "1",
     "MAPMODEL": "global",
+    "ADJPBYCHR": F,
 
     "_comments": "scripts for cutting adaptor and mapping",
     "BAMTOCOV": "${PARCELSCRIPTS}/BamToPosCount.sh",

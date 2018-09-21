@@ -80,11 +80,16 @@ load(covinfo);
 
 print(conditions)
 load(paste(resultdir,"etTable_",conditions,".Rdata",sep=""))
-etTable = etTable[,score:=log(0.1)-log(PValue)];
+etTable = etTable[,score:=log(0.1)-log(PValue+1e-300)];
 #totalSite = dim(etTable)[1];
 totalSite = sum(rowSums(v1all[,c(-1,-2),with=F]) > (NCOL(v1all)-2));
 
-output = etTable[,do.call(rbind.data.frame,kadane(x=score,pos=pos,minscore=5,dscore=-10)),by=chr]
+distancecutoff = 2000;
+etTable = etTable[order(chr,pos),]
+etTable[,blk:=c(0,cumsum(pos[-1] - pos[-length(pos)] > distancecutoff)),by=chr]
+browser();
+output = etTable[,do.call(rbind.data.frame,kadane(x=score,pos=pos,minscore=5,dscore=-10)),by=list(chr,blk)]
+#output = etTable[,do.call(rbind.data.frame,kadane(x=score,pos=pos,minscore=5,dscore=-10)),by=chr]
 output = output[,c("E_value","pos","winSize","geneID","pstart","pend"):=
               list(evalue(n=totalSite,sumscore=maxScore),
                     round((start+end)/2,0),
@@ -92,6 +97,7 @@ output = output[,c("E_value","pos","winSize","geneID","pstart","pend"):=
                     gsub("(.*):(.*)","\\1",chr),
                     start,
                     end)];
+originalRegions = copy(output); # total number of regions that pass coverage cutoff
 output = output[maxScore>=5,];
-save(output,file=paste(resultdir,"fastq2_",conditions,"_output10.Rdata",sep=""))
+save(output,originalRegions,file=paste(resultdir,"fastq2_",conditions,"_output10.Rdata",sep=""))
 print(paste("no. of output10",NROW(output),sep=":"));

@@ -37,6 +37,14 @@ filterOutput = function(x,thr=NULL,group_names=NULL){
   extendLen = 120; # how long is the length for extension
   tmpstart = as.numeric(as.character(x[["pstart"]])) - extendLen;
   tmpend = as.numeric(as.character(x[["pend"]])) + extendLen;
+  tmpV1count = v1all[chr==x[["chr"]] & pos >=tmpstart & pos <= tmpend,];
+  
+  #browser();
+  
+  treatmentcount = mean(unlist(tmpV1count[,lapply(.SD,sum),.SDcols=names(group_names)[group_names]]*sf[group_names]));
+  controlcount = mean(unlist(tmpV1count[,lapply(.SD,sum),.SDcols=names(group_names)[!group_names]]*sf[!group_names]));
+  covdiff = abs(log2(treatmentcount+1)- log2(controlcount+1));
+  
   min2 = et[is.finite(logCPM) & pos >= tmpstart & pos <= tmpend,mean(logCPM)]; # coverage cutoff for given gene
   pvaluefilter = ifelse(sum(et[ pos >= as.numeric(as.character(x[["pstart"]])) & pos <= as.numeric(as.character(x[["pend"]])),PAdjust]<thr)>0,"pass","nopass");
   covfilter = ifelse(
@@ -49,8 +57,6 @@ filterOutput = function(x,thr=NULL,group_names=NULL){
   changefilter = "nopass";
   ## passed - <- positions passed min2, thr,
   
-  #gStruc is the CDS information start, end of CDS, which is used to annotate the biotype of candidates.
-  g <- gStruc[gStruc$gene==gsub("(.*):(.*)","\\1",x[["chr"]]),]
   fc <- maxpos <- dist <- pcounts <- lowpass <- as.numeric(0);
   pcpos <- lppos <- "none"
   
@@ -60,14 +66,20 @@ filterOutput = function(x,thr=NULL,group_names=NULL){
     if (fc>foldcutoff){ # if fold change > 2fold
       foldfilter = "pass";				
       maxpos = passed[which.max(abs(logFC)),pos]; # get the position of site with maximum fold change
-      # get the relative position in transcript, 5UTR negative, CDS position, 3UTR positive + 100.
-      if (maxpos<=g[[2]]) {
-        dist <- maxpos-g[[2]]-1 # 5'UTR
-      } else if (maxpos>=g[[3]]){
-        dist <- maxpos-g[[3]]+1001 # 3'UTR
-      } else {
-        dist <- (maxpos-g[[2]]+1)*1000/(g[[3]]-g[[2]]-1); # CDS scaled as 1000bp
+      
+      if(!is.null(gStruc)){
+        #gStruc is the CDS information start, end of CDS, which is used to annotate the biotype of candidates.
+        g <- gStruc[gStruc$gene==gsub("(.*):(.*)","\\1",x[["chr"]]),]
+        # get the relative position in transcript, 5UTR negative, CDS position, 3UTR positive + 100.
+        if (maxpos<=g[[2]]) {
+          dist <- maxpos-g[[2]]-1 # 5'UTR
+        } else if (maxpos>=g[[3]]){
+          dist <- maxpos-g[[3]]+1001 # 3'UTR
+        } else {
+          dist <- (maxpos-g[[2]]+1)*1000/(g[[3]]-g[[2]]-1); # CDS scaled as 1000bp
+        }
       }
+      
       passed_pos <- passed[abs(logFC) >= log2(foldcutoff),pos] ## only those positions that also pass FC filters
       
       if (length(passed_pos)>1){ # multiple sites passed
@@ -119,7 +131,7 @@ filterOutput = function(x,thr=NULL,group_names=NULL){
   return(
     list( maxPos= as.numeric(maxpos), maxFC=fc, m1sd=min2, dist=dist, pcounts = pcounts,
           pcpos = pcpos,lowpass = lowpass,lppos = lppos,pvaluefilter = pvaluefilter,
-          covfilter = covfilter,foldfilter = foldfilter,sitecovfilter = sitecovfilter, changefilter = changefilter));
+          covfilter = covfilter,foldfilter = foldfilter,sitecovfilter = sitecovfilter, changefilter = changefilter,covdiff=covdiff));
     
 }
 
@@ -142,6 +154,7 @@ gStruc = args[6]; # CDS information
 sampleinfofile = args[7]; # sampleinfo.txt
 batchid = args[8]; # batchID
 ismerge =  ifelse(!is.null(args[9]) & args[9]=="T",T,F); # whether merge libraries from same condition
+adjPByChr = ifelse(!is.null(args[10]) & args[10]=="T",T,F); # whether adjust pvalue for each chromosome, this can be set as TRUE when chromsomes from different species were pooled together
 
 # process sample information ---------------------------
 sampleInfo = read.table(sampleinfofile,header=T,sep="\t",quote='"',stringsAsFactor=F);
@@ -156,16 +169,26 @@ load(covinfo); # load coverage information, v1all
 
 sampleInfo = sampleInfo[!is.na(match(sampleInfo[,"LibID"],names(v1all)[c(-1,-2)])),];
 
-if(grepl("Rdata$",gStruc)){
-	load(gStruc);
+if(file.exists(gStruc)){
+  if(grepl("Rdata$",gStruc)){
+    load(gStruc);
+  } else {
+    gStruc = read.table(gStruc,header=T,sep="\t",quote='"');
+  }
 } else {
-	gStruc = read.table(gStruc,header=T,sep="\t",quote='"');
+  gStruc = NULL;
 }
 
 
 load(sffile); # load factors for normalization, sf
 load(paste(resultdir,"etTable_",conditions,".Rdata",sep="")) # load edgeR result, etTable
-etTable[,PAdjust:=p.adjust(PValue,method="fdr")]
+
+if(adjPByChr==T){
+  etTable[,PAdjust:=p.adjust(PValue,method="fdr"),by=chr]  
+} else {
+  etTable[,PAdjust:=p.adjust(PValue,method="fdr")]
+}
+
 load(paste(resultdir,"fastq2_",conditions,"_output10.Rdata",sep="")) # load Evalue result, output
 n = sum(rowSums(v1all[,c(-1,-2),with=F]) > (NCOL(v1all)-2)); 
 thr = 0.1; # pvalue threshold 
@@ -189,12 +212,29 @@ if(NROW(output)>0){
   output[E_value<=10,evaluefilter:="pass"];
   v1all  = v1all[chr %in% output[evaluefilter=="pass",chr],];
   output[,rowid:=.I];
-  returnVars = c("maxPos","maxFC","m1sd","dist","pcounts","pcpos","lowpass","lppos","pvaluefilter","covfilter","foldfilter","sitecovfilter","changefilter")
+  returnVars = c("maxPos","maxFC","m1sd","dist","pcounts","pcpos","lowpass","lppos","pvaluefilter","covfilter","foldfilter","sitecovfilter","changefilter","covdiff")
   output[evaluefilter == "pass", (returnVars):= filterOutput(.SD,thr=thr,group_names=group_names),by = rowid];
   originaloutput <- output;
-  finalCols = c(mainCols,"maxPos","maxFC","m1sd","dist","pcounts","pcpos","lowpass","lppos");
+  finalCols = c(mainCols,"maxPos","maxFC","m1sd","dist","pcounts","pcpos","lowpass","lppos","covdiff");
   output2 <- output[changefilter=="pass",finalCols,with=F];
-  print(paste(conditions,": ",NROW(output2),"positive",sep=""));
+  uniqueRegion = 0;
+  if(dim(output2)[1]>0){
+    distancecutoff = 200;
+    tmpnames = names(output2);
+    output2 = output2[order(chr,start),];
+    output2[,mergeBlk:=c(0,cumsum(
+      end[-length(end)] - start[-1] < -1*distancecutoff # whether two regions belong to same block
+      )),by=chr]
+    output2[,mergeBlk:=paste(chr,mergeBlk,sep=":")];
+    uniqueRegion = length(unique(output2[,mergeBlk]));
+    output2[,region:=paste(chr,":",start,"-",end,sep="")];
+    setcolorder(output2,c("mergeBlk","region",tmpnames));
+  }
+  output2 = output2[,!c("blk")];
+  print(paste(conditions,": ",NROW(output2),"positive (",uniqueRegion," merged blocks)",sep=""));
   save(output2,originaloutput,file=paste(resultdir,"combined_",conditions,"_output2_wfilters.Rdata",sep=""))
   write.table(output2,file=paste(resultdir,"combined_",conditions,"_output2_wfilters.txt",sep=""),col.names=T,row.names=F,sep="\t",quote=F);
+} else {
+  write.table(output,file=paste(resultdir,"combined_",conditions,"_output2_wfilters.txt",sep=""),col.names=T,row.names=F,sep="\t",quote=F);
 }
+warnings();
